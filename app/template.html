@@ -847,6 +847,7 @@ function endQuizRound(){
 
 /* ---------- 视图 ---------- */
 let navTop = { view: "home" };
+let pendingTabSwitch = null;
 function renderView(view){
   $$(".view").forEach(v => v.classList.add("hidden"));
   $("#view-" + view).classList.remove("hidden");
@@ -863,8 +864,15 @@ function renderView(view){
 function show(view){
   if(view === "detail") return;
   if(navTop.view === view && !navTop.detailId){ renderView(view); return; }
+  if(navTop.detailId){
+    // 从详情页切换标签：先静默退掉详情这一层，再把当前层替换为目标标签，
+    // 保证五个主界面之间来回切换不叠加返回栈。
+    pendingTabSwitch = view;
+    history.back();
+    return;
+  }
   navTop = { view: view };
-  history.pushState(navTop, "");
+  history.replaceState(navTop, "");
   renderView(view);
 }
 function closeOverlaysSilently(){
@@ -876,13 +884,19 @@ function closeOverlaysSilently(){
   document.body.style.overflow = "";
 }
 window.addEventListener("popstate", function(e){
-  const st = e.state;
-  navTop = (st && (st.view || st.overlay)) ? st : { view: "home" };
   closeOverlaysSilently();
-  if(navTop.view){
-    if(navTop.detailId) $("#view-detail").dataset.id = navTop.detailId;
-    renderView(navTop.view);
+  if(pendingTabSwitch){
+    const target = pendingTabSwitch;
+    pendingTabSwitch = null;
+    navTop = { view: target };
+    history.replaceState(navTop, "");
+    renderView(target);
+    return;
   }
+  const st = e.state;
+  navTop = (st && st.view) ? st : { view: "home" };
+  if(navTop.detailId) $("#view-detail").dataset.id = navTop.detailId;
+  renderView(navTop.view);
 });
 
 function refreshHome(){
