@@ -19,7 +19,7 @@ function assert(cond, msg) {
   });
   const page = await browser.newPage();
   const errors = [];
-  page.on("pageerror", e => errors.push("pageerror: " + e.message));
+  page.on("pageerror", e => errors.push("pageerror: " + e.message + " @ " + (e.stack ? e.stack.split("\n")[1] : "")));
   page.on("console", m => {
     if (m.type() === "error") errors.push("console: " + m.text());
   });
@@ -27,6 +27,15 @@ function assert(cond, msg) {
   await page.goto(pathToFileURL(path.resolve(html)).href, { waitUntil: "load" });
   assert((await page.textContent("#stPending")) === "259", "待学习初始应为 259");
   assert((await page.textContent("#stNew")) === "20", "新卡默认 20");
+
+  // 手势返回：打开学习浮层后返回，应关闭浮层并留在首页，而不是退出
+  await page.click("#btnStart");
+  await page.waitForTimeout(250);
+  assert(await page.evaluate(() => !document.querySelector("#studyOverlay").classList.contains("hidden")), "应打开学习浮层");
+  await page.goBack();
+  await page.waitForTimeout(300);
+  assert(await page.evaluate(() => document.querySelector("#studyOverlay").classList.contains("hidden")), "返回应关闭学习浮层");
+  assert(await page.evaluate(() => !document.querySelector("#view-home").classList.contains("hidden")), "返回后应仍在首页");
 
   // 每日新产品数改为 3
   await page.click('.tabbar button[data-tab="me"]');
@@ -160,6 +169,20 @@ function assert(cond, msg) {
   await page.waitForTimeout(200);
   const seriesRows = await page.$$eval("#view-detail table.series tr", els => els.length);
   assert(seriesRows >= 15, "颜料膏应有颜色系列表");
+
+  // 系统返回：详情 -> 搜索 -> 产品库 -> 首页
+  await page.goBack();
+  await page.waitForTimeout(400);
+  const backState1 = await page.evaluate(() => [...document.querySelectorAll(".view")].filter(v => !v.classList.contains("hidden")).map(v => v.id).join(","));
+  assert(backState1 === "view-search", "返回应回到搜索页, 实际: " + backState1);
+  await page.goBack();
+  await page.waitForTimeout(400);
+  const backState2 = await page.evaluate(() => [...document.querySelectorAll(".view")].filter(v => !v.classList.contains("hidden")).map(v => v.id).join(","));
+  assert(backState2 === "view-library", "返回应回到产品库, 实际: " + backState2);
+  await page.goBack();
+  await page.waitForTimeout(400);
+  const backState3 = await page.evaluate(() => [...document.querySelectorAll(".view")].filter(v => !v.classList.contains("hidden")).map(v => v.id).join(","));
+  assert(backState3 === "view-home", "返回应回到首页, 实际: " + backState3);
 
   const errs = errors.filter(e => !e.includes("favicon"));
   console.log("学习首卡:", firstCode, "| 答错反馈:", feedback);

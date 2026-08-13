@@ -495,6 +495,8 @@ function openStudy(mode, id){
   session = { queue: mode === "one" ? q : shuffleNoAdjacent(q.slice()), idx:0, mode:mode, done:0, again:0, uniqueTotal:q.length };
   $("#studyOverlay").classList.remove("hidden");
   document.body.style.overflow = "hidden";
+  navTop = { overlay: "study" };
+  history.pushState(navTop, "");
   renderCard();
 }
 function shuffle(arr){
@@ -554,9 +556,11 @@ function dailyBatch(){
 }
 function closeStudy(){
   $("#studyOverlay").classList.add("hidden");
-  $("#flashcard").classList.remove("flipped");
+  const fc = $("#flashcard");
+  if(fc) fc.classList.remove("flipped");
   document.body.style.overflow = "";
   refreshAll();
+  history.back();
 }
 
 function currentProduct(){ return byId(session.queue[session.idx]); }
@@ -663,7 +667,9 @@ function renderDone(){
 
 function startQuizPhase(){
   $("#studyOverlay").classList.add("hidden");
-  openQuiz();
+  navTop = { overlay: "quiz" };
+  history.replaceState(navTop, "");
+  openQuiz(false);
 }
 
 /* ---------- 答题模式 ---------- */
@@ -705,7 +711,7 @@ function quizTypePool(){
   return pool;
 }
 
-function openQuiz(){
+function openQuiz(pushHistory){
   const today = dayKey();
   const batch = dailyBatch();
   const carry = PRODUCTS.filter(p => {
@@ -722,6 +728,10 @@ function openQuiz(){
   };
   $("#quizOverlay").classList.remove("hidden");
   document.body.style.overflow = "hidden";
+  if(pushHistory !== false){
+    navTop = { overlay: "quiz" };
+    history.pushState(navTop, "");
+  }
   renderQuizQuestion();
 }
 
@@ -730,6 +740,7 @@ function closeQuiz(){
   $("#quizOverlay").classList.add("hidden");
   document.body.style.overflow = "";
   refreshAll();
+  history.back();
 }
 
 function quizProgress(){
@@ -835,8 +846,8 @@ function endQuizRound(){
 }
 
 /* ---------- 视图 ---------- */
-let backView = "home";
-function show(view){
+let navTop = { view: "home" };
+function renderView(view){
   $$(".view").forEach(v => v.classList.add("hidden"));
   $("#view-" + view).classList.remove("hidden");
   $$(".tabbar button").forEach(b => b.classList.toggle("active", b.dataset.tab === view));
@@ -849,6 +860,30 @@ function show(view){
   if(view === "detail") refreshDetail();
   window.scrollTo(0,0);
 }
+function show(view){
+  if(view === "detail") return;
+  if(navTop.view === view && !navTop.detailId){ renderView(view); return; }
+  navTop = { view: view };
+  history.pushState(navTop, "");
+  renderView(view);
+}
+function closeOverlaysSilently(){
+  if(typeof quiz !== "undefined" && quiz) clearTimeout(quiz.timer);
+  $("#studyOverlay").classList.add("hidden");
+  $("#quizOverlay").classList.add("hidden");
+  const fc = $("#flashcard");
+  if(fc) fc.classList.remove("flipped");
+  document.body.style.overflow = "";
+}
+window.addEventListener("popstate", function(e){
+  const st = e.state;
+  navTop = (st && (st.view || st.overlay)) ? st : { view: "home" };
+  closeOverlaysSilently();
+  if(navTop.view){
+    if(navTop.detailId) $("#view-detail").dataset.id = navTop.detailId;
+    renderView(navTop.view);
+  }
+});
 
 function refreshHome(){
   const now = Date.now();
@@ -1097,15 +1132,11 @@ function refreshDetail(){
 }
 
 function openDetail(id){
-  backView = $("#view-detail").classList.contains("hidden") ? currentView() : backView;
   $("#view-detail").dataset.id = id;
-  refreshDetail();
-  show("detail");
+  navTop = { view: "detail", detailId: id };
+  history.pushState(navTop, "");
+  renderView("detail");
 }
-function currentView(){
-  return $$(".view").find(v => !v.classList.contains("hidden")).id.replace("view-","");
-}
-
 function refreshAll(){
   refreshHome();
   if(!$("#view-library").classList.contains("hidden")) refreshLibrary();
@@ -1143,7 +1174,7 @@ $("#flashcard").addEventListener("click", () => {
   if(session.idx < session.queue.length) $("#flashcard").classList.toggle("flipped");
 });
 $$(".rate-btn").forEach(b => b.addEventListener("click", () => applyRate(b.dataset.rate)));
-$("#btnBack").addEventListener("click", () => show(backView));
+$("#btnBack").addEventListener("click", () => history.back());
 $("#searchInput").addEventListener("input", debounce(refreshSearch, 120));
 $("#searchClear").addEventListener("click", () => { $("#searchInput").value=""; refreshSearch(); $("#searchInput").focus(); });
 $("#dailyNew").addEventListener("change", e => {
@@ -1217,7 +1248,9 @@ if(!PRODUCTS.length){
   $("#btnStart").disabled = true;
 }
 refreshAll();
-show("home");
+history.replaceState({ view: "home" }, "");
+navTop = { view: "home" };
+renderView("home");
 if("serviceWorker" in navigator && location.protocol !== "file:"){
   navigator.serviceWorker.register("./sw.js").catch(function(){});
 }
