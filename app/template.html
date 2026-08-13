@@ -496,6 +496,7 @@ function openStudy(mode, id){
   $("#studyOverlay").classList.remove("hidden");
   document.body.style.overflow = "hidden";
   navTop = { overlay: "study" };
+  navDepth++;
   history.pushState(navTop, "");
   renderCard();
 }
@@ -546,10 +547,15 @@ function seededShuffle(arr, seed){
 function dailyBatch(){
   const today = dayKey();
   const limit = Math.max(1, state.meta.dailyNew || 20);
-  if(state.meta.batchDay !== today || state.meta.batchSize !== limit || !state.meta.batch || !state.meta.batch.length){
-    state.meta.batch = seededShuffle(newPool().map(p => p.id), hashString(today)).slice(0, limit);
+  if(state.meta.batchDay !== today || state.meta.batchSize !== limit || state.meta.batchScheme !== 2 || !state.meta.batch || !state.meta.batch.length){
+    // 每个用户生成一个随机种子：同一天内自己保持稳定，但不同用户、不同日期抽到的 20 个产品不同
+    if(!state.meta.userSeed){
+      state.meta.userSeed = Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10);
+    }
+    state.meta.batch = seededShuffle(newPool().map(p => p.id), hashString(state.meta.userSeed + ":" + today)).slice(0, limit);
     state.meta.batchDay = today;
     state.meta.batchSize = limit;
+    state.meta.batchScheme = 2;
     saveState();
   }
   return state.meta.batch.slice();
@@ -730,6 +736,7 @@ function openQuiz(pushHistory){
   document.body.style.overflow = "hidden";
   if(pushHistory !== false){
     navTop = { overlay: "quiz" };
+    navDepth++;
     history.pushState(navTop, "");
   }
   renderQuizQuestion();
@@ -848,6 +855,8 @@ function endQuizRound(){
 /* ---------- 视图 ---------- */
 let navTop = { view: "home" };
 let pendingTabSwitch = null;
+let navDepth = 0; // 基础层之上还压了几层（详情 / 错题本 / 学习 / 答题）
+const MAIN_TABS = ["home", "library", "search", "me"];
 function renderView(view){
   $$(".view").forEach(v => v.classList.add("hidden"));
   $("#view-" + view).classList.remove("hidden");
@@ -863,16 +872,24 @@ function renderView(view){
 }
 function show(view){
   if(view === "detail") return;
-  if(navTop.view === view && !navTop.detailId){ renderView(view); return; }
-  if(navTop.detailId){
-    // 从详情页切换标签：先静默退掉详情这一层，再把当前层替换为目标标签，
-    // 保证五个主界面之间来回切换不叠加返回栈。
-    pendingTabSwitch = view;
-    history.back();
+  if(MAIN_TABS.includes(view)){
+    if(navTop.view === view && !navTop.detailId){ renderView(view); return; }
+    if(navTop.overlay || navTop.detailId || !MAIN_TABS.includes(navTop.view || "")){
+      // 从详情 / 错题本 / 浮层切到主标签：先把上面的层全部退掉，再替换为目标标签，
+      // 保证主界面之间来回切换不叠加返回栈。
+      pendingTabSwitch = view;
+      history.back();
+      return;
+    }
+    navTop = { view: view };
+    history.replaceState(navTop, "");
+    renderView(view);
     return;
   }
+  // 错题本等子页面：压一层，返回时回到上一页
   navTop = { view: view };
-  history.replaceState(navTop, "");
+  navDepth++;
+  history.pushState(navTop, "");
   renderView(view);
 }
 function closeOverlaysSilently(){
@@ -884,19 +901,29 @@ function closeOverlaysSilently(){
   document.body.style.overflow = "";
 }
 window.addEventListener("popstate", function(e){
-  closeOverlaysSilently();
+  const st = e.state;
   if(pendingTabSwitch){
+    if(navDepth > 1){
+      navDepth--;
+      history.back();
+      return;
+    }
+    navDepth = 0;
     const target = pendingTabSwitch;
     pendingTabSwitch = null;
     navTop = { view: target };
     history.replaceState(navTop, "");
+    closeOverlaysSilently();
     renderView(target);
     return;
   }
-  const st = e.state;
-  navTop = (st && st.view) ? st : { view: "home" };
-  if(navTop.detailId) $("#view-detail").dataset.id = navTop.detailId;
-  renderView(navTop.view);
+  if(navDepth > 0) navDepth--;
+  closeOverlaysSilently();
+  navTop = (st && (st.view || st.overlay)) ? st : { view: "home" };
+  if(navTop.view){
+    if(navTop.detailId) $("#view-detail").dataset.id = navTop.detailId;
+    renderView(navTop.view);
+  }
 });
 
 function refreshHome(){
@@ -1148,6 +1175,7 @@ function refreshDetail(){
 function openDetail(id){
   $("#view-detail").dataset.id = id;
   navTop = { view: "detail", detailId: id };
+  navDepth++;
   history.pushState(navTop, "");
   renderView("detail");
 }
