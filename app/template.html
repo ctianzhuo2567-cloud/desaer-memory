@@ -1153,7 +1153,13 @@ $("#dailyNew").addEventListener("change", e => {
   e.target.value = v; saveState(); toast("已保存，每日新卡与答题各 " + v + " 个");
 });
 $("#btnExport").addEventListener("click", () => {
-  const blob = new Blob([JSON.stringify(state,null,2)], {type:"application/json"});
+  const text = JSON.stringify(state,null,2);
+  if(window.AndroidBridge && typeof AndroidBridge.saveText === "function"){
+    AndroidBridge.saveText("德赛尔产品记忆进度.json", text);
+    toast("已导出到手机的下载目录");
+    return;
+  }
+  const blob = new Blob([text], {type:"application/json"});
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = "德赛尔产品记忆进度.json";
@@ -1161,21 +1167,23 @@ $("#btnExport").addEventListener("click", () => {
   setTimeout(() => URL.revokeObjectURL(a.href), 3000);
   toast("已导出");
 });
+function acceptImportText(text){
+  try{
+    const s = JSON.parse(text);
+    if(!s || typeof s !== "object") throw new Error("bad");
+    state.srs = Object.assign({}, s.srs || {});
+    state.notes = Object.assign({}, s.notes || {});
+    state.meta = Object.assign({dailyNew:20}, s.meta || {});
+    saveState(); refreshAll(); toast("导入成功");
+  }catch(err){ toast("导入失败：文件格式不正确"); }
+}
+window.__acceptImportText = acceptImportText;
 $("#btnImport").addEventListener("click", () => $("#importFile").click());
 $("#importFile").addEventListener("change", e => {
   const f = e.target.files[0];
   if(!f) return;
   const rd = new FileReader();
-  rd.onload = () => {
-    try{
-      const s = JSON.parse(rd.result);
-      if(!s || typeof s !== "object") throw new Error("bad");
-      state.srs = Object.assign({}, s.srs || {});
-      state.notes = Object.assign({}, s.notes || {});
-      state.meta = Object.assign({dailyNew:20}, s.meta || {});
-      saveState(); refreshAll(); toast("导入成功");
-    }catch(err){ toast("导入失败：文件格式不正确"); }
-  };
+  rd.onload = () => acceptImportText(rd.result);
   rd.readAsText(f, "utf-8");
   e.target.value = "";
 });
