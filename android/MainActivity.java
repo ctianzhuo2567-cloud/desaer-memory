@@ -27,6 +27,18 @@ public class MainActivity extends Activity {
     @SuppressLint("SetJavaScriptEnabled")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
+            @Override
+            public void uncaughtException(Thread t, Throwable e) {
+                try {
+                    java.io.StringWriter sw = new java.io.StringWriter();
+                    e.printStackTrace(new java.io.PrintWriter(sw));
+                    saveToDownloads("desaer-crash.txt", sw.toString().getBytes(StandardCharsets.UTF_8));
+                } catch (Exception ignored) {
+                }
+                android.os.Process.killProcess(android.os.Process.myPid());
+            }
+        });
         super.onCreate(savedInstanceState);
         web = new WebView(this);
         WebSettings s = web.getSettings();

@@ -16,15 +16,16 @@ $ks = Join-Path $proj "desaer-release.jks"
 $env:JAVA_HOME = $jdk
 $env:PATH = "$jdk\bin;$env:PATH"
 
+Remove-Item -LiteralPath (Join-Path $proj "dex") -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force (Join-Path $proj "dist"), (Join-Path $proj "classes"), (Join-Path $proj "dex") | Out-Null
-Remove-Item -LiteralPath (Join-Path $proj "dex\classes.dex") -Force -ErrorAction SilentlyContinue
 
 Push-Location $proj
 try {
     & "$jdk\bin\javac.exe" -encoding UTF-8 -source 8 -target 8 -bootclasspath $androidJar -d classes "MainActivity.java"
     if($LASTEXITCODE -ne 0){ throw "javac failed" }
 
-    & "$bt\d8.bat" --release --lib $androidJar --min-api 29 --output dex "classes\com\desaer\memory\MainActivity.class"
+    $classFiles = Get-ChildItem -Path "classes" -Recurse -Filter "*.class" | ForEach-Object { $_.FullName.Substring((Get-Location).Path.Length + 1) }
+    & "$bt\d8.bat" --release --lib $androidJar --min-api 29 --output dex $classFiles
     if($LASTEXITCODE -ne 0){ throw "d8 failed" }
 
     & "$bt\aapt2.exe" compile --dir res -o res.zip

@@ -5,6 +5,7 @@ __pycache__/
 android/dist/
 android/classes/
 android/dex/
+android/dbg/
 android/res.zip
 android/app.unsigned.apk
 android/app.aligned.apk
