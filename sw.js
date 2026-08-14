@@ -1,5 +1,5 @@
 /* 德赛尔产品记忆 Service Worker：缓存名随构建内容变化，更新后自动让手机拿到新版本。 */
-const VERSION = "1d9f9369";
+const VERSION = "36a44f16";
 const CACHE = "desaar-memory-" + VERSION;
 const ASSETS = [
   "./",
