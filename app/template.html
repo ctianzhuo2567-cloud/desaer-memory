@@ -288,6 +288,29 @@
       </div>
     </section>
 
+    <!-- 专项学习计划 -->
+    <section id="view-projects" class="view hidden">
+      <div class="card hero">
+        <div class="sec-title" style="margin:0 0 8px">专项学习计划</div>
+        <div class="muted" style="font-size:13px">把近期关注的产品单独建组，每天固定学习与答题，和主界面的每日学习互不影响；答题题目每天自动更换。</div>
+        <button class="btn primary block" id="btnNewProject" style="margin-top:12px">＋ 新建专项项目</button>
+      </div>
+      <div class="sec-title">进行中</div>
+      <div id="projActiveList"></div>
+      <div class="empty" id="projActiveEmpty" style="display:none">
+        <div class="big">📋</div>
+        <div>还没有专项项目，点上方按钮创建一个</div>
+      </div>
+      <div class="sec-title" id="projDoneTitle" style="display:none">已完成</div>
+      <div id="projDoneList"></div>
+    </section>
+
+    <!-- 专项项目详情 -->
+    <section id="view-project" class="view hidden">
+      <button class="btn ghost" id="btnProjectBack">‹ 返回</button>
+      <div id="projectBody"></div>
+    </section>
+
     <!-- 错题本 -->
     <section id="view-wrong" class="view hidden">
       <div class="card">
@@ -349,7 +372,7 @@
   <nav class="tabbar">
     <button data-tab="home" class="active"><span class="ico">🎓</span>学习</button>
     <button data-tab="library"><span class="ico">🗂️</span>产品库</button>
-    <button data-tab="search"><span class="ico">🔍</span>搜索</button>
+    <button data-tab="projects"><span class="ico">📋</span>专项</button>
     <button data-tab="me"><span class="ico">⚙️</span>我的</button>
   </nav>
 
@@ -393,6 +416,25 @@
     <div class="ov-body" id="quizBody"></div>
   </div>
 
+  <!-- 专项产品选择浮层 -->
+  <div id="pickOverlay" class="overlay hidden">
+    <div class="ov-top">
+      <button class="quit" id="btnPickClose">✕</button>
+      <div class="count" id="pickTitle" style="flex:1;text-align:left;font-size:15px">选择产品</div>
+    </div>
+    <div class="ov-body" style="display:block;padding:12px 14px;overflow-y:auto">
+      <input id="pickName" class="edit" placeholder="项目名称，如：近期关注产品" style="margin-bottom:10px;min-height:44px">
+      <div class="searchbox" style="position:static;margin-bottom:10px;box-shadow:none">
+        <span>🔍</span>
+        <input id="pickInput" type="search" placeholder="搜索产品代号或中文名" autocomplete="off">
+      </div>
+      <div id="pickList"></div>
+    </div>
+    <div class="ov-actions">
+      <button class="btn primary block" id="btnPickConfirm">确认（0）</button>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
 
 <script>
@@ -423,15 +465,15 @@ function dayKey(d){ d = d || new Date(); return d.getFullYear()+"-"+String(d.get
 function byId(id){ return PRODUCTS.find(p => p.id === id); }
 
 /* ---------- 状态 ---------- */
-let state = { srs:{}, notes:{}, meta:{ dailyNew:20 } };
+let state = { srs:{}, notes:{}, meta:{ dailyNew:20 }, projects:[] };
 function loadState(){
   try{
     const raw = localStorage.getItem(LS_KEY);
     if(raw){
       const s = JSON.parse(raw);
-      state = Object.assign({ srs:{}, notes:{}, meta:{ dailyNew:20 } }, s);
+      state = Object.assign({ srs:{}, notes:{}, meta:{ dailyNew:20 }, projects:[] }, s);
     }
-  }catch(e){ state = { srs:{}, notes:{}, meta:{ dailyNew:20 } }; }
+  }catch(e){ state = { srs:{}, notes:{}, meta:{ dailyNew:20 }, projects:[] }; }
 }
 function saveState(){
   try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }
@@ -634,6 +676,18 @@ function renderCard(){
 
 function applyRate(q){
   const p = currentProduct();
+  if(session.mode === "project"){
+    // 专项学习不写入主学习进度，只在本次会话内决定是否稍后再复习
+    if(q === "again" || q === "hard"){
+      if(q === "again") session.again += 1;
+      session.queue.push(p.id);
+    }else{
+      session.done += 1;
+    }
+    session.idx += 1;
+    if(session.idx >= session.queue.length) renderDone(); else renderCard();
+    return;
+  }
   let s = srsOf(p.id) || blankSrs();
   s.reps += 1;
   if(!s.introDay) s.introDay = dayKey();
@@ -675,7 +729,7 @@ function renderDone(){
   body.innerHTML = "";
   const box = el("div", {class:"done-box"});
   box.appendChild(el("div", {class:"big"}, "🎓"));
-  box.appendChild(el("div", {style:"font-size:18px;font-weight:700"}, "学习完成"));
+  box.appendChild(el("div", {style:"font-size:18px;font-weight:700"}, session.mode === "project" ? "专项学习完成" : "学习完成"));
   if(session.mode === "combined"){
     box.appendChild(el("div", {class:"muted"}, "接下来进行今天的答题"));
     const btn = el("button", {class:"btn primary block", id:"btnToQuiz", style:"margin-top:12px;width:min(300px,86vw)"}, "开始答题");
@@ -749,7 +803,7 @@ function openQuiz(pushHistory){
   const ids = carry.concat(shuffle(batch.slice()));
   if(!ids.length){ toast("今天没有可答题的产品"); return; }
   quiz = {
-    round: 1, queue: ids, idx: 0, wrong: [], timer: null, current: null,
+    round: 1, queue: ids.map(buildTypeQuestion), idx: 0, wrong: [], timer: null, current: null, projectId: null,
     stats: { r1c: 0, r1w: 0, r2c: 0, r2w: 0 }
   };
   $("#quizOverlay").classList.remove("hidden");
@@ -759,6 +813,101 @@ function openQuiz(pushHistory){
     navDepth++;
     history.pushState(navTop, "");
   }
+  renderQuizQuestion();
+}
+
+function buildTypeQuestion(id){
+  const p = byId(id);
+  const pool = quizTypePool().filter(t => t !== p.type);
+  const options = shuffle([p.type].concat(shuffle(pool.slice()).slice(0, 3)));
+  return { id: p.id, qtype: "type", prompt: "这个产品属于哪种类型？", options: options, correctIndex: options.indexOf(p.type) };
+}
+
+/* 专项答题：题目按 类型/固含量/特点/主要成分/适用工段 轮换，按天固定、隔天不重复 */
+function solidOf(p){
+  if(p.specs && p.specs.length){
+    const row = p.specs.find(sp => /固含量/.test(sp.key || ""));
+    if(row && row.value) return String(row.value).trim();
+  }
+  return null;
+}
+function qTypesFor(p){
+  const ts = ["type"];
+  if(p.features && p.features.length) ts.push("feature");
+  if(p.components && p.components.length) ts.push("component");
+  if(p.application && p.application.length) ts.push("application");
+  if(solidOf(p)) ts.push("solid");
+  return ts;
+}
+function distractorPool(kind, correct){
+  const set = [];
+  PRODUCTS.forEach(p => {
+    let vals = [];
+    if(kind === "feature") vals = p.features || [];
+    else if(kind === "component") vals = p.components || [];
+    else if(kind === "application") vals = p.application || [];
+    else if(kind === "solid"){ const s = solidOf(p); if(s) vals = [s]; }
+    vals.forEach(v => {
+      const t = String(v).trim();
+      if(t && t !== correct && !set.includes(t)) set.push(t);
+    });
+  });
+  return set;
+}
+function buildFieldQuestion(p, qtype, seed){
+  if(qtype === "type") return buildTypeQuestion(p.id);
+  let correct = null, pool = null, prompt = "";
+  if(qtype === "feature"){
+    correct = String(p.features[0]).trim();
+    pool = distractorPool("feature", correct);
+    prompt = "以下哪项属于「" + p.code + "」的特点？";
+  }else if(qtype === "component"){
+    correct = String(p.components[0]).trim();
+    pool = distractorPool("component", correct);
+    prompt = "以下哪项是「" + p.code + "」的主要成分？";
+  }else if(qtype === "application"){
+    correct = String(p.application[0]).trim();
+    pool = distractorPool("application", correct);
+    prompt = "以下哪项是「" + p.code + "」的适用工段？";
+  }else if(qtype === "solid"){
+    correct = solidOf(p);
+    pool = distractorPool("solid", correct);
+    prompt = "「" + p.code + "」的固含量是多少？";
+  }
+  if(!correct || !pool || pool.length < 3) return null;
+  const opts = seededShuffle(pool, seed).slice(0, 3);
+  const options = seededShuffle([correct].concat(opts), seed + 1);
+  return { id: p.id, qtype: qtype, prompt: prompt, options: options, correctIndex: options.indexOf(correct) };
+}
+function buildProjectQuestions(pr){
+  const base = hashString(pr.id + ":" + dayKey());
+  const order = seededShuffle(pr.productIds.slice(), base);
+  const qs = [];
+  order.forEach((pid, i) => {
+    const p = byId(pid);
+    if(!p) return;
+    const ts = qTypesFor(p);
+    const qtype = ts[(base + i * 7) % ts.length];
+    let q = buildFieldQuestion(p, qtype, base + i * 13);
+    if(!q) q = buildTypeQuestion(p.id);
+    if(q) qs.push(q);
+  });
+  return qs;
+}
+function openProjectQuiz(projId){
+  const pr = projById(projId);
+  if(!pr || !pr.productIds.length){ toast("该项目还没有产品，请先添加"); return; }
+  const questions = buildProjectQuestions(pr);
+  if(!questions.length){ toast("暂无可出题的产品"); return; }
+  quiz = {
+    round: 1, queue: questions, idx: 0, wrong: [], timer: null, current: null, projectId: projId,
+    stats: { r1c: 0, r1w: 0, r2c: 0, r2w: 0 }
+  };
+  $("#quizOverlay").classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+  navTop = { overlay: "quiz" };
+  navDepth++;
+  history.pushState(navTop, "");
   renderQuizQuestion();
 }
 
@@ -777,20 +926,21 @@ function quizProgress(){
 
 function renderQuizQuestion(){
   quizProgress();
-  const p = byId(quiz.queue[quiz.idx]);
-  const pool = quizTypePool().filter(t => t !== p.type);
-  const options = shuffle([p.type].concat(shuffle(pool.slice()).slice(0, 3)));
-  quiz.current = { id: p.id, correctIndex: options.indexOf(p.type) };
+  const q = quiz.queue[quiz.idx];
+  const p = byId(q.id);
+  quiz.current = q;
   const body = $("#quizBody");
   body.innerHTML = "";
   const card = el("div", {class: "quiz-card", "data-id": p.id});
   card.appendChild(el("div", {class: "q-round"},
-    quiz.round === 1 ? "第一轮 · 选择正确的产品类型" : "重考 · 答错的题目再考一次"));
+    quiz.projectId
+      ? "专项答题 · 题目每天更换"
+      : (quiz.round === 1 ? "第一轮 · 选择正确的产品类型" : "重考 · 答错的题目再考一次")));
   card.appendChild(el("div", {class: "q-code", id: "quizCode"}, p.code));
   card.appendChild(el("div", {class: "q-name"}, p.name));
-  card.appendChild(el("div", {class: "q-prompt"}, "这个产品属于哪种类型？"));
+  card.appendChild(el("div", {class: "q-prompt"}, q.prompt));
   const opts = el("div", {class: "opts"});
-  options.forEach((t, i) => {
+  q.options.forEach((t, i) => {
     const b = el("button", {class: "opt", "data-i": i}, t);
     b.addEventListener("click", () => answerQuiz(i));
     opts.appendChild(b);
@@ -802,7 +952,9 @@ function renderQuizQuestion(){
 
 function answerQuiz(i){
   if(!quiz || !quiz.current || quiz.timer) return;
-  const { id, correctIndex } = quiz.current;
+  const q = quiz.current;
+  const id = q.id;
+  const correctIndex = q.correctIndex;
   const opts = $$("#quizBody .opt");
   const fb = $("#quizFeedback");
   opts.forEach(o => { o.disabled = true; o.classList.add("dim"); });
@@ -810,16 +962,17 @@ function answerQuiz(i){
   opts[correctIndex].classList.remove("dim");
   const right = i === correctIndex;
   if(right){
-    const res = recordQuizResult(id, true);
-    fb.textContent = res.mastered ? "答对了，已掌握 ✓" : "答对了 ✓";
+    let mastered = false;
+    if(!quiz.projectId){ const res = recordQuizResult(id, true); mastered = res.mastered; }
+    fb.textContent = mastered ? "答对了，已掌握 ✓" : "答对了 ✓";
     fb.className = "q-feedback ok";
     if(quiz.round === 1) quiz.stats.r1c += 1; else quiz.stats.r2c += 1;
   }else{
-    fb.textContent = "答错了，正确答案：" + byId(id).type;
+    fb.textContent = "答错了，正确答案：" + q.options[correctIndex];
     fb.className = "q-feedback bad";
     opts[i].classList.add("wrong");
     opts[i].classList.remove("dim");
-    recordQuizResult(id, false);
+    if(!quiz.projectId) recordQuizResult(id, false);
     if(quiz.round === 1){ quiz.stats.r1w += 1; quiz.wrong.push(id); }
     else quiz.stats.r2w += 1;
   }
@@ -834,9 +987,9 @@ function advanceQuiz(){
 }
 
 function endQuizRound(){
-  if(quiz.round === 1 && quiz.wrong.length){
+  if(!quiz.projectId && quiz.round === 1 && quiz.wrong.length){
     quiz.round = 2;
-    quiz.queue = quiz.wrong.slice();
+    quiz.queue = quiz.wrong.map(buildTypeQuestion);
     quiz.idx = 0;
     const body = $("#quizBody");
     body.innerHTML = "";
@@ -855,13 +1008,18 @@ function endQuizRound(){
   const body = $("#quizBody");
   body.innerHTML = "";
   const box = el("div", {class: "q-center"});
-  box.appendChild(el("div", {style: "font-size:40px"}, quiz.stats.r2w ? "🏁" : "🎉"));
-  box.appendChild(el("div", {style: "font-size:18px;font-weight:700"}, "本轮答题完成"));
+  box.appendChild(el("div", {style: "font-size:40px"}, quiz.projectId ? (quiz.stats.r1w ? "📝" : "🎯") : (quiz.stats.r2w ? "🏁" : "🎉")));
+  box.appendChild(el("div", {style: "font-size:18px;font-weight:700"}, quiz.projectId ? "今日专项答题完成" : "本轮答题完成"));
   const d = el("div", {class: "muted"});
-  d.appendChild(el("div", null, "共 " + total + " 题，首轮答对 " + quiz.stats.r1c + " 题"));
-  if(quiz.wrong.length){
-    d.appendChild(el("div", null, "错题重考答对 " + quiz.stats.r2c + " 题，仍错 " + quiz.stats.r2w + " 题"));
-    d.appendChild(el("div", null, "仍答错的题目已进入错题本"));
+  if(quiz.projectId){
+    d.appendChild(el("div", null, "共 " + total + " 题，答对 " + quiz.stats.r1c + " 题"));
+    d.appendChild(el("div", null, "专项答题不进错题本，明天自动换一批新题目"));
+  }else{
+    d.appendChild(el("div", null, "共 " + total + " 题，首轮答对 " + quiz.stats.r1c + " 题"));
+    if(quiz.wrong.length){
+      d.appendChild(el("div", null, "错题重考答对 " + quiz.stats.r2c + " 题，仍错 " + quiz.stats.r2w + " 题"));
+      d.appendChild(el("div", null, "仍答错的题目已进入错题本"));
+    }
   }
   box.appendChild(d);
   const b = el("button", {class: "btn primary block", style: "width:min(300px,86vw)"}, "完成");
@@ -872,19 +1030,238 @@ function endQuizRound(){
   $("#quizCount").textContent = total + "/" + total;
 }
 
+/* ---------- 专项学习 ---------- */
+function projById(id){ return (state.projects || []).find(pr => pr.id === id); }
+function saveProjects(){ saveState(); renderProjects(); }
+function projDate(ts){ return ts ? new Date(ts).toLocaleDateString("zh-CN") : ""; }
+
+function renderProjects(){
+  const active = (state.projects || []).filter(p => !p.completed);
+  const done = (state.projects || []).filter(p => p.completed);
+  $("#projActiveEmpty").style.display = active.length ? "none" : "";
+  const aBox = $("#projActiveList");
+  aBox.innerHTML = "";
+  active.forEach(pr => {
+    const card = el("div", {class:"card", style:"margin-bottom:10px"});
+    const row = el("div", {class:"row", style:"margin:0"});
+    const main = el("div", {class:"main"});
+    main.appendChild(el("div", {class:"t"}, pr.name));
+    main.appendChild(el("div", {class:"s"}, pr.productIds.length + " 个产品 · 每日学习 + 答题"));
+    row.appendChild(main);
+    const b = el("button", {class:"btn primary sm"}, "进入");
+    b.addEventListener("click", () => openProject(pr.id));
+    row.appendChild(b);
+    card.appendChild(row);
+    aBox.appendChild(card);
+  });
+  $("#projDoneTitle").style.display = done.length ? "" : "none";
+  const dBox = $("#projDoneList");
+  dBox.innerHTML = "";
+  done.forEach(pr => {
+    const card = el("div", {class:"card", style:"margin-bottom:10px;opacity:.75"});
+    const row = el("div", {class:"row", style:"margin:0"});
+    const main = el("div", {class:"main"});
+    main.appendChild(el("div", {class:"t"}, pr.name));
+    main.appendChild(el("div", {class:"s"}, "已完成 · " + projDate(pr.completedAt)));
+    row.appendChild(main);
+    const b = el("button", {class:"btn sm"}, "查看");
+    b.addEventListener("click", () => openProject(pr.id));
+    row.appendChild(b);
+    card.appendChild(row);
+    dBox.appendChild(card);
+  });
+}
+
+function renderProject(){
+  const id = $("#view-project").dataset.id;
+  const pr = projById(id);
+  if(!pr){ renderProjects(); show("projects"); return; }
+  const body = $("#projectBody");
+  body.innerHTML = "";
+  const head = el("div", {class:"card"});
+  head.appendChild(el("div", {class:"sec-title", style:"margin:0 0 6px"}, pr.completed ? "已完成" : "进行中"));
+  head.appendChild(el("div", {style:"font-size:22px;font-weight:800"}, pr.name));
+  head.appendChild(el("div", {class:"muted", style:"font-size:13px;margin-top:4px"}, pr.productIds.length + " 个产品 · 创建于 " + projDate(pr.createdAt)));
+  body.appendChild(head);
+  if(!pr.completed){
+    const act = el("div", {class:"card"});
+    const bStudy = el("button", {class:"btn primary block", style:"margin-bottom:8px"}, "开始今日专项学习");
+    bStudy.addEventListener("click", () => openProjectStudy(pr.id));
+    act.appendChild(bStudy);
+    const bQuiz = el("button", {class:"btn block"}, "今日专项答题");
+    bQuiz.addEventListener("click", () => openProjectQuiz(pr.id));
+    act.appendChild(bQuiz);
+    body.appendChild(act);
+  }
+  body.appendChild(el("div", {class:"sec-title"}, "项目产品（" + pr.productIds.length + "）"));
+  const chips = el("div", {class:"d-tags", style:"gap:6px"});
+  pr.productIds.forEach(pid => {
+    const p = byId(pid);
+    if(p) chips.appendChild(el("span", {class:"chip"}, p.code));
+  });
+  body.appendChild(chips);
+  const ops = el("div", {class:"card"});
+  if(!pr.completed){
+    const bEdit = el("button", {class:"btn block", style:"margin-bottom:8px"}, "管理项目产品");
+    bEdit.addEventListener("click", () => openPicker("manage", pr.id));
+    ops.appendChild(bEdit);
+    const bDone = el("button", {class:"btn block", style:"color:var(--bad)"}, "完成项目");
+    bDone.addEventListener("click", () => completeProject(pr.id));
+    ops.appendChild(bDone);
+  }else{
+    const bReopen = el("button", {class:"btn block", style:"margin-bottom:8px"}, "重新开启项目");
+    bReopen.addEventListener("click", () => reopenProject(pr.id));
+    ops.appendChild(bReopen);
+    const bDel = el("button", {class:"btn block", style:"color:var(--bad)"}, "删除项目");
+    bDel.addEventListener("click", () => deleteProject(pr.id));
+    ops.appendChild(bDel);
+  }
+  body.appendChild(ops);
+}
+
+function openProject(id){
+  $("#view-project").dataset.id = id;
+  navTop = { view: "project", projId: id };
+  navDepth++;
+  history.pushState(navTop, "");
+  renderView("project");
+}
+
+function completeProject(id){
+  const pr = projById(id);
+  if(!pr) return;
+  if(!confirm("确定要完成「" + pr.name + "」吗？完成后将停止该项目的每日学习，产品选择不会删除。")) return;
+  pr.completed = true;
+  pr.completedAt = Date.now();
+  saveProjects();
+  renderProject();
+}
+function reopenProject(id){
+  const pr = projById(id);
+  if(!pr) return;
+  pr.completed = false;
+  pr.completedAt = 0;
+  saveProjects();
+  renderProject();
+}
+function deleteProject(id){
+  const pr = projById(id);
+  if(!pr) return;
+  if(!confirm("确定要删除「" + pr.name + "」吗？项目及其产品选择将无法恢复。")) return;
+  state.projects = (state.projects || []).filter(x => x.id !== id);
+  saveProjects();
+  show("projects");
+}
+
+function openProjectStudy(projId){
+  const pr = projById(projId);
+  if(!pr || !pr.productIds.length){ toast("该项目还没有产品，请先添加"); return; }
+  const q = shuffle(pr.productIds.slice());
+  session = { queue: q, idx:0, mode:"project", projectId: projId, done:0, again:0, uniqueTotal:q.length };
+  $("#studyOverlay").classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+  navTop = { overlay: "study" };
+  navDepth++;
+  history.pushState(navTop, "");
+  renderCard();
+}
+
+/* 专项产品选择浮层 */
+let pickMode = { mode:"new" };
+let pickSelected = [];
+function openPicker(mode, projId){
+  const pr = mode === "manage" ? projById(projId) : null;
+  pickMode = pr ? { mode:"manage", projId: pr.id } : { mode:"new" };
+  $("#pickTitle").textContent = pickMode.mode === "new" ? "新建专项项目" : "管理产品 · " + pr.name;
+  $("#pickName").style.display = pickMode.mode === "new" ? "" : "none";
+  $("#pickName").value = pickMode.mode === "new" ? "" : pr.name;
+  pickSelected = pr ? pr.productIds.slice() : [];
+  $("#pickInput").value = "";
+  refreshPickList();
+  $("#pickOverlay").classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+}
+function closePicker(){
+  $("#pickOverlay").classList.add("hidden");
+  document.body.style.overflow = "";
+}
+function updatePickSelected(cb, id){
+  if(cb.checked){
+    if(!pickSelected.includes(id)) pickSelected.push(id);
+  }else{
+    pickSelected = pickSelected.filter(x => x !== id);
+  }
+  $("#btnPickConfirm").textContent = "确认（" + pickSelected.length + "）";
+}
+function refreshPickList(){
+  const q = norm($("#pickInput").value);
+  const list = $("#pickList");
+  list.innerHTML = "";
+  const rows = PRODUCTS.filter(p => !q || norm(p.code).includes(q) || norm(p.name).includes(q));
+  rows.forEach(p => {
+    const row = el("div", {class:"row", style:"margin:0"});
+    const cb = el("input", {type:"checkbox", style:"width:18px;height:18px;flex:0 0 auto"});
+    cb.checked = pickSelected.includes(p.id);
+    cb.addEventListener("change", () => updatePickSelected(cb, p.id));
+    row.appendChild(cb);
+    const main = el("div", {class:"main"});
+    main.appendChild(el("div", {class:"t"}, p.code));
+    main.appendChild(el("div", {class:"s"}, p.name + " · " + p.category));
+    row.appendChild(main);
+    row.addEventListener("click", (e) => {
+      if(e.target === cb) return;
+      cb.checked = !cb.checked;
+      updatePickSelected(cb, p.id);
+    });
+    list.appendChild(row);
+  });
+  $("#btnPickConfirm").textContent = "确认（" + pickSelected.length + "）";
+}
+function confirmPick(){
+  if(pickMode.mode === "new"){
+    const name = $("#pickName").value.trim();
+    if(!name){ toast("请先填写项目名称"); return; }
+    if(!pickSelected.length){ toast("请至少选择一个产品"); return; }
+    if(!state.projects) state.projects = [];
+    state.projects.push({
+      id: "proj_" + Date.now().toString(36),
+      name: name,
+      productIds: pickSelected.slice(),
+      createdAt: Date.now(),
+      completed: false,
+      completedAt: 0
+    });
+    saveProjects();
+    closePicker();
+    toast("已创建专项项目");
+    show("projects");
+  }else{
+    const pr = projById(pickMode.projId);
+    if(!pr) return;
+    if(!pickSelected.length){ toast("项目至少需要一个产品"); return; }
+    pr.productIds = pickSelected.slice();
+    saveProjects();
+    closePicker();
+    toast("已更新项目产品");
+    renderProject();
+  }
+}
+
 /* ---------- 视图 ---------- */
 let navTop = { view: "home" };
 let pendingTabSwitch = null;
 let navDepth = 0; // 基础层之上还压了几层（详情 / 错题本 / 学习 / 答题）
-const MAIN_TABS = ["home", "library", "search", "me"];
+const MAIN_TABS = ["home", "library", "projects", "me"];
 function renderView(view){
   $$(".view").forEach(v => v.classList.add("hidden"));
   $("#view-" + view).classList.remove("hidden");
   $$(".tabbar button").forEach(b => b.classList.toggle("active", b.dataset.tab === view));
-  const titles = {home:"产品记忆", library:"产品库", search:"搜索", wrong:"错题本", me:"我的", detail:"产品详情"};
+  const titles = {home:"产品记忆", library:"产品库", projects:"专项学习", project:"专项项目", search:"搜索", wrong:"错题本", me:"我的", detail:"产品详情"};
   $("#appTitle").textContent = titles[view] || "产品记忆";
   if(view === "home") refreshHome();
   if(view === "library") refreshLibrary();
+  if(view === "projects") renderProjects();
+  if(view === "project") renderProject();
   if(view === "search") refreshSearch();
   if(view === "wrong") refreshWrong();
   if(view === "detail") refreshDetail();
@@ -916,6 +1293,7 @@ function closeOverlaysSilently(){
   if(typeof quiz !== "undefined" && quiz) clearTimeout(quiz.timer);
   $("#studyOverlay").classList.add("hidden");
   $("#quizOverlay").classList.add("hidden");
+  $("#pickOverlay").classList.add("hidden");
   const fc = $("#flashcard");
   if(fc) fc.classList.remove("flipped");
   document.body.style.overflow = "";
@@ -942,6 +1320,7 @@ window.addEventListener("popstate", function(e){
   navTop = (st && (st.view || st.overlay)) ? st : { view: "home" };
   if(navTop.view){
     if(navTop.detailId) $("#view-detail").dataset.id = navTop.detailId;
+    if(navTop.projId) $("#view-project").dataset.id = navTop.projId;
     renderView(navTop.view);
   }
 });
@@ -1201,6 +1580,8 @@ function openDetail(id){
 function refreshAll(){
   refreshHome();
   if(!$("#view-library").classList.contains("hidden")) refreshLibrary();
+  if(!$("#view-projects").classList.contains("hidden")) renderProjects();
+  if(!$("#view-project").classList.contains("hidden")) renderProject();
   if(!$("#view-search").classList.contains("hidden")) refreshSearch();
   if(!$("#view-wrong").classList.contains("hidden")) refreshWrong();
   if(!$("#view-detail").classList.contains("hidden")) refreshDetail();
@@ -1236,6 +1617,11 @@ $("#flashcard").addEventListener("click", () => {
 });
 $$(".rate-btn").forEach(b => b.addEventListener("click", () => applyRate(b.dataset.rate)));
 $("#btnBack").addEventListener("click", () => history.back());
+$("#btnProjectBack").addEventListener("click", () => history.back());
+$("#btnNewProject").addEventListener("click", () => openPicker("new"));
+$("#btnPickClose").addEventListener("click", closePicker);
+$("#btnPickConfirm").addEventListener("click", confirmPick);
+$("#pickInput").addEventListener("input", refreshPickList);
 $("#searchInput").addEventListener("input", debounce(refreshSearch, 120));
 $("#searchClear").addEventListener("click", () => { $("#searchInput").value=""; refreshSearch(); $("#searchInput").focus(); });
 $("#dailyNew").addEventListener("change", e => {
@@ -1266,6 +1652,7 @@ function acceptImportText(text){
     state.srs = Object.assign({}, s.srs || {});
     state.notes = Object.assign({}, s.notes || {});
     state.meta = Object.assign({dailyNew:20}, s.meta || {});
+    state.projects = Array.isArray(s.projects) ? s.projects : [];
     saveState(); refreshAll(); toast("导入成功");
   }catch(err){ toast("导入失败：文件格式不正确"); }
 }
@@ -1282,7 +1669,7 @@ $("#importFile").addEventListener("change", e => {
 $("#btnReset").addEventListener("click", () => {
   if(confirm("确定要清空所有学习进度、错题与备注吗？此操作不可恢复。")){
     localStorage.removeItem(LS_KEY);
-    state = { srs:{}, notes:{}, meta:{ dailyNew:20 } };
+    state = { srs:{}, notes:{}, meta:{ dailyNew:20 }, projects:(state.projects || []).slice() };
     refreshAll(); toast("已重置");
   }
 });
