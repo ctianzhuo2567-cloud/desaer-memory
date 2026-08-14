@@ -247,21 +247,10 @@
         <div class="desc" id="heroDesc">先学习今天的产品，再进入答题</div>
         <button class="btn primary block" id="btnStart">开始今天的学习</button>
       </div>
-      <div class="sec-title">快捷入口</div>
       <div class="card">
         <div class="row" style="margin:0" id="rowWrong" data-go="wrong">
           <span class="icon-chip bad">📕</span>
           <div class="main"><div class="t">错题本</div><div class="s" id="wrongDesc">答错的卡片会进入这里</div></div>
-          <span class="chev">›</span>
-        </div>
-        <div class="row" style="margin:0" data-go="library">
-          <span class="icon-chip">🗂️</span>
-          <div class="main"><div class="t">全部产品</div><div class="s">按工段浏览 259 个产品</div></div>
-          <span class="chev">›</span>
-        </div>
-        <div class="row" style="margin:0" data-go="search">
-          <span class="icon-chip neutral">🔍</span>
-          <div class="main"><div class="t">搜索产品</div><div class="s">按产品名称搜索</div></div>
           <span class="chev">›</span>
         </div>
       </div>
@@ -269,22 +258,17 @@
 
     <!-- 产品库 -->
     <section id="view-library" class="view hidden">
-      <div class="chips" id="catChips"></div>
-      <div id="libList"></div>
-    </section>
-
-    <!-- 搜索 -->
-    <section id="view-search" class="view hidden">
       <div class="searchbox">
         <span>🔍</span>
         <input id="searchInput" type="search" placeholder="输入产品代号或中文名" autocomplete="off">
         <button class="clear" id="searchClear">×</button>
       </div>
+      <div class="chips" id="catChips"></div>
       <div class="sec-title" id="searchCount" style="display:none">搜索结果</div>
-      <div id="searchResult"></div>
-      <div class="empty" id="searchEmpty">
+      <div id="libList"></div>
+      <div class="empty" id="searchEmpty" style="display:none">
         <div class="big">🔍</div>
-        <div>输入产品名称即可搜索</div>
+        <div>未找到匹配的产品</div>
       </div>
     </section>
 
@@ -1258,13 +1242,12 @@ function renderView(view){
   $$(".view").forEach(v => v.classList.add("hidden"));
   $("#view-" + view).classList.remove("hidden");
   $$(".tabbar button").forEach(b => b.classList.toggle("active", b.dataset.tab === view));
-  const titles = {home:"百品记", library:"产品库", projects:"专项学习", project:"专项项目", search:"搜索", wrong:"错题本", me:"我的", detail:"产品详情"};
+  const titles = {home:"百品记", library:"产品库", projects:"专项学习", project:"专项项目", wrong:"错题本", me:"我的", detail:"产品详情"};
   $("#appTitle").textContent = titles[view] || "百品记";
   if(view === "home") refreshHome();
   if(view === "library") refreshLibrary();
   if(view === "projects") renderProjects();
   if(view === "project") renderProject();
-  if(view === "search") refreshSearch();
   if(view === "wrong") refreshWrong();
   if(view === "detail") refreshDetail();
   window.scrollTo(0,0);
@@ -1366,7 +1349,38 @@ function refreshHome(){
 }
 
 function refreshLibrary(){
+  const q = norm($("#searchInput").value);
+  $("#searchClear").style.display = q ? "block" : "none";
   const chips = $("#catChips");
+  const list = $("#libList");
+  const count = $("#searchCount");
+  const empty = $("#searchEmpty");
+  if(q){
+    chips.style.display = "none";
+    count.style.display = "none";
+    list.innerHTML = "";
+    const hits = PRODUCTS.filter(p => norm(p.code).includes(q) || norm(p.name).includes(q));
+    empty.style.display = hits.length ? "none" : "";
+    if(hits.length){
+      count.style.display = "";
+      count.innerHTML = "搜索结果 <span class='muted'>" + hits.length + " 个</span>";
+      const box = el("div", {class:"list"});
+      hits.forEach(p => {
+        const row = el("div", {class:"row"});
+        const main = el("div", {class:"main"});
+        main.appendChild(el("div", {class:"t"}, p.code));
+        main.appendChild(el("div", {class:"s"}, p.name + " · " + p.category + " · " + p.type));
+        row.appendChild(main);
+        row.addEventListener("click", () => openDetail(p.id));
+        box.appendChild(row);
+      });
+      list.appendChild(box);
+    }
+    return;
+  }
+  chips.style.display = "";
+  count.style.display = "none";
+  empty.style.display = "none";
   chips.innerHTML = "";
   let currentCat = chips.dataset.cat || "全部";
   const cats = ["全部"].concat(CATEGORY_ORDER.filter(c => PRODUCTS.some(p => p.category === c)));
@@ -1377,7 +1391,6 @@ function refreshLibrary(){
     b.addEventListener("click", () => { chips.dataset.cat = c; refreshLibrary(); });
     chips.appendChild(b);
   });
-  const list = $("#libList");
   list.innerHTML = "";
   const groups = {};
   PRODUCTS.forEach(p => {
@@ -1399,35 +1412,6 @@ function refreshLibrary(){
     });
     list.appendChild(box);
   });
-}
-
-function refreshSearch(){
-  const q = norm($("#searchInput").value);
-  $("#searchClear").style.display = q ? "block" : "none";
-  const box = $("#searchResult");
-  box.innerHTML = "";
-  if(!q){
-    $("#searchEmpty").style.display = "";
-    $("#searchCount").style.display = "none";
-    return;
-  }
-  const hits = PRODUCTS.filter(p => norm(p.code).includes(q) || norm(p.name).includes(q));
-  $("#searchEmpty").style.display = hits.length ? "none" : "";
-  $("#searchCount").style.display = hits.length ? "" : "none";
-  $("#searchCount").innerHTML = "搜索结果 <span class='muted'>" + hits.length + " 个</span>";
-  if(hits.length){
-    const list = el("div", {class:"list"});
-    hits.forEach(p => {
-      const row = el("div", {class:"row"});
-      const main = el("div", {class:"main"});
-      main.appendChild(el("div", {class:"t"}, p.code));
-      main.appendChild(el("div", {class:"s"}, p.name + " · " + p.category + " · " + p.type));
-      row.appendChild(main);
-      row.addEventListener("click", () => openDetail(p.id));
-      list.appendChild(row);
-    });
-    box.appendChild(list);
-  }
 }
 
 function refreshWrong(){
@@ -1584,7 +1568,6 @@ function refreshAll(){
   if(!$("#view-library").classList.contains("hidden")) refreshLibrary();
   if(!$("#view-projects").classList.contains("hidden")) renderProjects();
   if(!$("#view-project").classList.contains("hidden")) renderProject();
-  if(!$("#view-search").classList.contains("hidden")) refreshSearch();
   if(!$("#view-wrong").classList.contains("hidden")) refreshWrong();
   if(!$("#view-detail").classList.contains("hidden")) refreshDetail();
 }
@@ -1624,8 +1607,8 @@ $("#btnNewProject").addEventListener("click", () => openPicker("new"));
 $("#btnPickClose").addEventListener("click", closePicker);
 $("#btnPickConfirm").addEventListener("click", confirmPick);
 $("#pickInput").addEventListener("input", refreshPickList);
-$("#searchInput").addEventListener("input", debounce(refreshSearch, 120));
-$("#searchClear").addEventListener("click", () => { $("#searchInput").value=""; refreshSearch(); $("#searchInput").focus(); });
+$("#searchInput").addEventListener("input", debounce(refreshLibrary, 120));
+$("#searchClear").addEventListener("click", () => { $("#searchInput").value=""; refreshLibrary(); $("#searchInput").focus(); });
 $("#dailyNew").addEventListener("change", e => {
   const v = Math.min(200, Math.max(1, parseInt(e.target.value,10) || 20));
   state.meta.dailyNew = v;
