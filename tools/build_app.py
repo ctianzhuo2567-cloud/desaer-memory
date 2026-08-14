@@ -4,7 +4,7 @@
 
 用法: build_app.py <products.json> <app目录> <输出目录>
 输出: index.html, sw.js, manifest.webmanifest, icon-192.png, icon-512.png, apple-touch-icon.png
-版本号 = (模板 + 产品数据 + service worker 模板) 的内容哈希前 8 位，内容不变则版本不变。
+版本号 = (模板 + 产品数据 + service worker 模板 + manifest + 图标) 的内容哈希前 8 位，内容不变则版本不变。
 """
 
 import datetime
@@ -27,9 +27,23 @@ def main():
 
     template = io.open(os.path.join(app_dir, "template.html"), encoding="utf-8").read()
     sw_template = io.open(os.path.join(app_dir, "sw.template.js"), encoding="utf-8").read()
+    manifest = io.open(os.path.join(app_dir, "manifest.webmanifest"), encoding="utf-8").read()
+    icon_names = ("icon-192.png", "icon-512.png", "apple-touch-icon.png")
+    icon_bytes = []
+    for name in icon_names:
+        with io.open(os.path.join(app_dir, name), "rb") as f:
+            icon_bytes.append(f.read())
 
     version = hashlib.sha256(
-        template.encode("utf-8") + b"\0" + payload.encode("utf-8") + b"\0" + sw_template.encode("utf-8")
+        template.encode("utf-8")
+        + b"\0"
+        + payload.encode("utf-8")
+        + b"\0"
+        + sw_template.encode("utf-8")
+        + b"\0"
+        + manifest.encode("utf-8")
+        + b"\0"
+        + b"\0".join(icon_bytes)
     ).hexdigest()[:8]
     build_date = datetime.date.today().isoformat()
 
@@ -49,7 +63,7 @@ def main():
         os.path.join(app_dir, "manifest.webmanifest"),
         os.path.join(out_dir, "manifest.webmanifest"),
     )
-    for name in ("icon-192.png", "icon-512.png", "apple-touch-icon.png"):
+    for name in icon_names:
         shutil.copyfile(os.path.join(app_dir, name), os.path.join(out_dir, name))
 
     print(
