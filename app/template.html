@@ -421,7 +421,6 @@ function esc(s){
 function norm(s){ return String(s||"").toLowerCase().replace(/\s+/g,""); }
 function dayKey(d){ d = d || new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
 function byId(id){ return PRODUCTS.find(p => p.id === id); }
-function pno(p){ return "#" + String(p.no || 0).padStart(3, "0"); }
 
 /* ---------- 状态 ---------- */
 let state = { srs:{}, notes:{}, meta:{ dailyNew:20 } };
@@ -1008,10 +1007,10 @@ function refreshLibrary(){
     if(!groups[cat]) return;
     list.appendChild(el("div", {class:"sec-title"}, cat + " · " + groups[cat].length));
     const box = el("div", {class:"list"});
-    groups[cat].slice().sort((a,b)=>(a.no||0)-(b.no||0)).forEach(p => {
+    groups[cat].slice().sort((a,b)=>a.code.localeCompare(b.code)).forEach(p => {
       const row = el("div", {class:"row"});
       const main = el("div", {class:"main"});
-      main.appendChild(el("div", {class:"t"}, pno(p) + " · " + p.code));
+      main.appendChild(el("div", {class:"t"}, p.code));
       main.appendChild(el("div", {class:"s"}, p.name + "　" + p.type));
       row.appendChild(main);
       row.addEventListener("click", () => openDetail(p.id));
@@ -1031,7 +1030,7 @@ function refreshSearch(){
     $("#searchCount").style.display = "none";
     return;
   }
-  const hits = PRODUCTS.filter(p => norm(p.code).includes(q) || norm(p.name).includes(q) || norm(String(p.no || "")).includes(q));
+  const hits = PRODUCTS.filter(p => norm(p.code).includes(q) || norm(p.name).includes(q));
   $("#searchEmpty").style.display = hits.length ? "none" : "";
   $("#searchCount").style.display = hits.length ? "" : "none";
   $("#searchCount").innerHTML = "搜索结果 <span class='muted'>" + hits.length + " 个</span>";
@@ -1040,7 +1039,7 @@ function refreshSearch(){
     hits.forEach(p => {
       const row = el("div", {class:"row"});
       const main = el("div", {class:"main"});
-      main.appendChild(el("div", {class:"t"}, pno(p) + " · " + p.code));
+      main.appendChild(el("div", {class:"t"}, p.code));
       main.appendChild(el("div", {class:"s"}, p.name + " · " + p.category + " · " + p.type));
       row.appendChild(main);
       row.addEventListener("click", () => openDetail(p.id));
@@ -1062,7 +1061,7 @@ function refreshWrong(){
     const main = el("div", {class:"main"});
     const s = srsOf(p.id);
     const progress = s && s.quizCorrect ? " · 已答对 " + s.quizCorrect + "/3" : "";
-    main.appendChild(el("div", {class:"t"}, pno(p) + " · " + p.code));
+    main.appendChild(el("div", {class:"t"}, p.code));
     main.appendChild(el("div", {class:"s"}, p.name + " · " + p.type + progress));
     row.appendChild(main);
     const b = el("button", {class:"btn sm"}, "详情");
@@ -1095,7 +1094,7 @@ function refreshDetail(){
   head.appendChild(tags);
   head.appendChild(el("div", {class:"code"}, p.code));
   head.appendChild(el("div", {class:"name"}, p.name));
-  head.appendChild(el("div", {class:"type"}, "序号 " + String(p.no || 0).padStart(3, "0") + " · " + p.type));
+  head.appendChild(el("div", {class:"type"}, p.type));
   body.appendChild(head);
 
   const actions = el("div", {class:"card", style:"display:flex;gap:8px;flex-wrap:wrap"});
