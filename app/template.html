@@ -1180,10 +1180,14 @@ function openPicker(mode, projId){
   refreshPickList();
   $("#pickOverlay").classList.remove("hidden");
   document.body.style.overflow = "hidden";
+  navTop = { overlay: "picker" };
+  navDepth++;
+  history.pushState(navTop, "");
 }
 function closePicker(){
   $("#pickOverlay").classList.add("hidden");
   document.body.style.overflow = "";
+  history.back();
 }
 function updatePickSelected(cb, id){
   if(cb.checked){
@@ -1234,7 +1238,6 @@ function confirmPick(){
     saveProjects();
     closePicker();
     toast("已创建专项项目");
-    show("projects");
   }else{
     const pr = projById(pickMode.projId);
     if(!pr) return;
@@ -1243,7 +1246,6 @@ function confirmPick(){
     saveProjects();
     closePicker();
     toast("已更新项目产品");
-    renderProject();
   }
 }
 
