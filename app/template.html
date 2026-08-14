@@ -7,11 +7,11 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="德赛尔产品记忆">
+<meta name="apple-mobile-web-app-title" content="百品记">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="icon" href="./icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="./apple-touch-icon.png">
-<title>德赛尔产品记忆</title>
+<title>百品记</title>
 <style>
   :root{
     /* Paper & Ink：档案纸墨，暖白纸面 + 单一蓝强调 */
@@ -221,8 +221,8 @@
   <header class="appbar">
     <span class="brandmark"></span>
     <div class="app-title">
-      <h1 id="appTitle">产品记忆</h1>
-      <span class="sub" id="appSub">德赛尔 · 259 个产品</span>
+      <h1 id="appTitle">百品记</h1>
+      <span class="sub" id="appSub">百品记 · 259 个产品</span>
     </div>
   </header>
 
@@ -1258,8 +1258,8 @@ function renderView(view){
   $$(".view").forEach(v => v.classList.add("hidden"));
   $("#view-" + view).classList.remove("hidden");
   $$(".tabbar button").forEach(b => b.classList.toggle("active", b.dataset.tab === view));
-  const titles = {home:"产品记忆", library:"产品库", projects:"专项学习", project:"专项项目", search:"搜索", wrong:"错题本", me:"我的", detail:"产品详情"};
-  $("#appTitle").textContent = titles[view] || "产品记忆";
+  const titles = {home:"百品记", library:"产品库", projects:"专项学习", project:"专项项目", search:"搜索", wrong:"错题本", me:"我的", detail:"产品详情"};
+  $("#appTitle").textContent = titles[view] || "百品记";
   if(view === "home") refreshHome();
   if(view === "library") refreshLibrary();
   if(view === "projects") renderProjects();
@@ -1635,14 +1635,14 @@ $("#dailyNew").addEventListener("change", e => {
 $("#btnExport").addEventListener("click", () => {
   const text = JSON.stringify(state,null,2);
   if(window.AndroidBridge && typeof AndroidBridge.saveText === "function"){
-    AndroidBridge.saveText("德赛尔产品记忆进度.json", text);
+    AndroidBridge.saveText("百品记进度.json", text);
     toast("已导出到手机的下载目录");
     return;
   }
   const blob = new Blob([text], {type:"application/json"});
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = "德赛尔产品记忆进度.json";
+  a.download = "百品记进度.json";
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 3000);
   toast("已导出");
@@ -1692,7 +1692,7 @@ if(state.meta.dataEpoch !== 3){
 }
 $("#appVersion").textContent = APP_VERSION + " · " + BUILD_DATE;
 $("#dailyNew").value = state.meta.dailyNew || 20;
-$("#appSub").textContent = "德赛尔 · " + PRODUCTS.length + " 个产品";
+$("#appSub").textContent = "百品记 · " + PRODUCTS.length + " 个产品";
 if(!PRODUCTS.length){
   $("#dataWarning").style.display = "";
   $("#btnStart").disabled = true;

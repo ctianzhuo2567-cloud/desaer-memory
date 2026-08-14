@@ -1,4 +1,4 @@
-/* 德赛尔产品记忆 Service Worker：缓存名随构建内容变化，更新后自动让手机拿到新版本。 */
+/* 百品记 Service Worker：缓存名随构建内容变化，更新后自动让手机拿到新版本。 */
 const VERSION = "__VERSION__";
 const CACHE = "desaar-memory-" + VERSION;
 const ASSETS = [
