@@ -205,6 +205,11 @@
   .q-feedback.bad{color:var(--bad)}
   .q-center{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:24px}
   .q-center .btn{margin-top:10px}
+  .week-scores{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:4px}
+  .ws-cell{background:var(--tint);border:1px solid var(--line);border-radius:8px;padding:8px 2px;text-align:center}
+  .ws-date{font-size:10px;color:var(--faint);margin-bottom:4px}
+  .ws-val{font-size:14px;font-weight:800;color:var(--brand)}
+  .ws-val.none{color:var(--faint);font-weight:400}
   .toast{position:fixed;left:50%;bottom:calc(90px + env(safe-area-inset-bottom));transform:translateX(-50%);background:rgba(16,24,40,.92);color:#fff;padding:9px 16px;border-radius:999px;font-size:14px;z-index:99;opacity:0;pointer-events:none;transition:opacity .2s;white-space:nowrap}
   .toast.show{opacity:1}
   .d-head .code,.fc-front .code,.q-code{font-variant-numeric:tabular-nums;letter-spacing:.01em}
@@ -455,9 +460,9 @@ function loadState(){
     const raw = localStorage.getItem(LS_KEY);
     if(raw){
       const s = JSON.parse(raw);
-      state = Object.assign({ srs:{}, notes:{}, meta:{ dailyNew:20 }, projects:[] }, s);
+      state = Object.assign({ srs:{}, notes:{}, meta:{ dailyNew:20 }, projects:[], projectScores:{} }, s);
     }
-  }catch(e){ state = { srs:{}, notes:{}, meta:{ dailyNew:20 }, projects:[] }; }
+  }catch(e){ state = { srs:{}, notes:{}, meta:{ dailyNew:20 }, projects:[], projectScores:{} }; }
 }
 function saveState(){
   try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }
@@ -517,6 +522,7 @@ function buildQueue(mode, id){
   return due.concat(fresh);
 }
 
+const FLASHCARD_HTML = '<div class="flashcard" id="flashcard"><div class="fc-inner"><div class="fc-face fc-front"><div class="code" id="fcCode"></div><div class="name" id="fcName"></div><div class="bubbles" id="fcBubbles"></div><div class="hint">点击卡片查看答案</div></div><div class="fc-face fc-back" id="fcBack"></div></div></div>';
 function openStudy(mode, id){
   const q = buildQueue(mode, id);
   if(!q.length){
@@ -525,6 +531,7 @@ function openStudy(mode, id){
   }
   session = { queue: mode === "one" ? q : shuffleNoAdjacent(q.slice()), idx:0, mode:mode, done:0, again:0, uniqueTotal:q.length };
   $("#studyOverlay").classList.remove("hidden");
+  $("#ovBody").innerHTML = FLASHCARD_HTML;
   document.body.style.overflow = "hidden";
   navTop = { overlay: "study" };
   navDepth++;
@@ -805,14 +812,15 @@ function openQuiz(pushHistory){
   renderQuizQuestion();
 }
 
-function buildTypeQuestion(id){
+function buildTypeQuestion(id, seed){
   const p = byId(id);
   const pool = quizTypePool().filter(t => t !== p.type);
-  const options = shuffle([p.type].concat(shuffle(pool.slice()).slice(0, 3)));
+  const shuffled = seed == null ? shuffle(pool.slice()) : seededShuffle(pool, seed);
+  const options = seed == null ? shuffle([p.type].concat(shuffled.slice(0, 3))) : seededShuffle([p.type].concat(shuffled.slice(0, 3)), seed + 1);
   return { id: p.id, qtype: "type", prompt: "这个产品属于哪种类型？", options: options, correctIndex: options.indexOf(p.type) };
 }
 
-/* 专项答题：题目按 类型/固含量/特点/主要成分/适用工段 轮换，按天固定、隔天不重复 */
+/* 专项答题：选择题按 类型/主要成分/外观/固含量 轮换，另生成约一半产品数的特点判断题；按天固定、隔天不重复 */
 function solidOf(p){
   if(p.specs && p.specs.length){
     const row = p.specs.find(sp => /固含量/.test(sp.key || ""));
@@ -820,11 +828,17 @@ function solidOf(p){
   }
   return null;
 }
+function appearanceOf(p){
+  if(p.specs && p.specs.length){
+    const row = p.specs.find(sp => /外观/.test(sp.key || ""));
+    if(row && row.value) return String(row.value).trim();
+  }
+  return null;
+}
 function qTypesFor(p){
   const ts = ["type"];
-  if(p.features && p.features.length) ts.push("feature");
   if(p.components && p.components.length) ts.push("component");
-  if(p.application && p.application.length) ts.push("application");
+  if(appearanceOf(p)) ts.push("appearance");
   if(solidOf(p)) ts.push("solid");
   return ts;
 }
@@ -832,9 +846,8 @@ function distractorPool(kind, correct){
   const set = [];
   PRODUCTS.forEach(p => {
     let vals = [];
-    if(kind === "feature") vals = p.features || [];
-    else if(kind === "component") vals = p.components || [];
-    else if(kind === "application") vals = p.application || [];
+    if(kind === "component") vals = p.components || [];
+    else if(kind === "appearance"){ const s = appearanceOf(p); if(s) vals = [s]; }
     else if(kind === "solid"){ const s = solidOf(p); if(s) vals = [s]; }
     vals.forEach(v => {
       const t = String(v).trim();
@@ -843,23 +856,29 @@ function distractorPool(kind, correct){
   });
   return set;
 }
+function ownValues(p, kind){
+  if(kind === "component") return (p.components || []).map(v => String(v).trim());
+  if(kind === "appearance"){ const s = appearanceOf(p); return s ? [s] : []; }
+  if(kind === "solid"){ const s = solidOf(p); return s ? [s] : []; }
+  return [];
+}
 function buildFieldQuestion(p, qtype, seed){
-  if(qtype === "type") return buildTypeQuestion(p.id);
+  if(qtype === "type") return buildTypeQuestion(p.id, seed);
   let correct = null, pool = null, prompt = "";
-  if(qtype === "feature"){
-    correct = String(p.features[0]).trim();
-    pool = distractorPool("feature", correct);
-    prompt = "以下哪项属于「" + p.code + "」的特点？";
-  }else if(qtype === "component"){
-    correct = String(p.components[0]).trim();
-    pool = distractorPool("component", correct);
+  if(qtype === "component"){
+    const arr = (p.components || []).map(v => String(v).trim()).filter(Boolean);
+    if(!arr.length) return null;
+    correct = arr[seed % arr.length];
+    pool = distractorPool("component", correct).filter(v => !ownValues(p, "component").includes(v));
     prompt = "以下哪项是「" + p.code + "」的主要成分？";
-  }else if(qtype === "application"){
-    correct = String(p.application[0]).trim();
-    pool = distractorPool("application", correct);
-    prompt = "以下哪项是「" + p.code + "」的适用工段？";
+  }else if(qtype === "appearance"){
+    correct = appearanceOf(p);
+    if(!correct) return null;
+    pool = distractorPool("appearance", correct).filter(v => !ownValues(p, "appearance").includes(v));
+    prompt = "以下哪项是「" + p.code + "」的外观？";
   }else if(qtype === "solid"){
     correct = solidOf(p);
+    if(!correct) return null;
     pool = distractorPool("solid", correct);
     prompt = "「" + p.code + "」的固含量是多少？";
   }
@@ -868,20 +887,55 @@ function buildFieldQuestion(p, qtype, seed){
   const options = seededShuffle([correct].concat(opts), seed + 1);
   return { id: p.id, qtype: qtype, prompt: prompt, options: options, correctIndex: options.indexOf(correct) };
 }
+function makeFalseStatement(s){
+  const m = s.match(/\d+(?:\.\d+)?/);
+  if(m){
+    const v = parseFloat(m[0]);
+    const nv = v * 10;
+    const ns = Number.isInteger(nv) ? String(nv) : String(Math.round(nv * 100) / 100);
+    return s.slice(0, m.index) + ns + s.slice(m.index + m[0].length);
+  }
+  const pairs = [
+    ["促进","抑制"],["提高","降低"],["增强","减弱"],["增加","减少"],
+    ["柔软","硬挺"],["滑爽","粗糙"],["防水","吸水"],["防止","促进"],
+    ["去除","保留"],["润湿","疏水"],["均匀","不均匀"],["优异","较差"],
+    ["高效","低效"],["快速","缓慢"],["强力","微弱"],["良好","较差"]
+  ];
+  for(const pair of pairs){ if(s.includes(pair[0])) return s.replace(pair[0], pair[1], 1); }
+  return null;
+}
+function buildJudgeQuestion(p, seed, idx){
+  const feats = (p.features || []).map(v => String(v).trim()).filter(Boolean);
+  if(!feats.length) return null;
+  const si = (seed + idx * 7) % feats.length;
+  const raw = feats[si];
+  const fake = makeFalseStatement(raw);
+  const isTrue = !fake || ((seed + idx * 11) % 2 === 0);
+  const statement = isTrue ? raw : fake;
+  return { id: p.id, qtype: "tf", prompt: "判断正误：" + statement, options: ["正确", "错误"], correctIndex: isTrue ? 0 : 1 };
+}
 function buildProjectQuestions(pr){
   const base = hashString(pr.id + ":" + dayKey());
   const order = seededShuffle(pr.productIds.slice(), base);
-  const qs = [];
+  const mc = [];
   order.forEach((pid, i) => {
     const p = byId(pid);
     if(!p) return;
     const ts = qTypesFor(p);
     const qtype = ts[(base + i * 7) % ts.length];
     let q = buildFieldQuestion(p, qtype, base + i * 13);
-    if(!q) q = buildTypeQuestion(p.id);
-    if(q) qs.push(q);
+    if(!q) q = buildTypeQuestion(p.id, base + i * 13);
+    if(q) mc.push(q);
   });
-  return qs;
+  const tfCount = Math.max(1, Math.round(order.length / 2));
+  const candidates = order.filter(pid => {
+    const p = byId(pid);
+    return p && p.features && p.features.length;
+  });
+  const tf = seededShuffle(candidates, base + 1).slice(0, tfCount)
+    .map((pid, j) => buildJudgeQuestion(byId(pid), base + 2, j))
+    .filter(Boolean);
+  return mc.concat(tf);
 }
 function openProjectQuiz(projId){
   const pr = projById(projId);
@@ -923,7 +977,7 @@ function renderQuizQuestion(){
   const card = el("div", {class: "quiz-card", "data-id": p.id});
   card.appendChild(el("div", {class: "q-round"},
     quiz.projectId
-      ? "专项答题 · 题目每天更换"
+      ? (q.qtype === "tf" ? "专项答题 · 判断题" : "专项答题 · 选择题")
       : (quiz.round === 1 ? "第一轮 · 选择正确的产品类型" : "重考 · 答错的题目再考一次")));
   card.appendChild(el("div", {class: "q-code", id: "quizCode"}, p.code));
   card.appendChild(el("div", {class: "q-name"}, p.name));
@@ -1001,8 +1055,17 @@ function endQuizRound(){
   box.appendChild(el("div", {style: "font-size:18px;font-weight:700"}, quiz.projectId ? "今日专项答题完成" : "本轮答题完成"));
   const d = el("div", {class: "muted"});
   if(quiz.projectId){
+    const pct = total > 0 ? Math.round(quiz.stats.r1c / total * 100) : 0;
+    box.appendChild(el("div", {style:"font-size:36px;font-weight:800;color:var(--brand)"}, "得分 " + pct + "%"));
     d.appendChild(el("div", null, "共 " + total + " 题，答对 " + quiz.stats.r1c + " 题"));
     d.appendChild(el("div", null, "专项答题不进错题本，明天自动换一批新题目"));
+    const pr = projById(quiz.projectId);
+    if(pr && total > 0){
+      state.projectScores = state.projectScores || {};
+      const map = state.projectScores[pr.id] = state.projectScores[pr.id] || {};
+      map[dayKey()] = { c: quiz.stats.r1c, t: total };
+      saveState();
+    }
   }else{
     d.appendChild(el("div", null, "共 " + total + " 题，首轮答对 " + quiz.stats.r1c + " 题"));
     if(quiz.wrong.length){
@@ -1082,6 +1145,20 @@ function renderProject(){
     act.appendChild(bQuiz);
     body.appendChild(act);
   }
+  const scores = (state.projectScores && state.projectScores[id]) || {};
+  const sc = el("div", {class:"card"});
+  sc.appendChild(el("div", {class:"sec-title", style:"margin:0 0 8px"}, "近 7 天答题"));
+  const grid = el("div", {class:"week-scores"});
+  for(let i = 6; i >= 0; i--){
+    const k = dayKey(new Date(Date.now() - i * DAY));
+    const r = scores[k];
+    const cell = el("div", {class:"ws-cell"});
+    cell.appendChild(el("div", {class:"ws-date"}, k.slice(5).replace("-", "/")));
+    cell.appendChild(el("div", {class:"ws-val" + (r ? "" : " none")}, r ? Math.round(r.c / r.t * 100) + "%" : "—"));
+    grid.appendChild(cell);
+  }
+  sc.appendChild(grid);
+  body.appendChild(sc);
   body.appendChild(el("div", {class:"sec-title"}, "项目产品（" + pr.productIds.length + "）"));
   const chips = el("div", {class:"d-tags", style:"gap:6px"});
   pr.productIds.forEach(pid => {
@@ -1602,10 +1679,11 @@ document.addEventListener("click", e => {
 $("#btnStart").addEventListener("click", () => openStudy("combined"));
 $("#btnQuitStudy").addEventListener("click", closeStudy);
 $("#btnQuitQuiz").addEventListener("click", closeQuiz);
-$("#flashcard").addEventListener("click", () => {
-  if(session.idx < session.queue.length){
+$("#studyOverlay").addEventListener("click", e => {
+  const fc = e.target.closest("#flashcard");
+  if(fc && session.idx < session.queue.length){
     fillCardBack(currentProduct());
-    $("#flashcard").classList.toggle("flipped");
+    fc.classList.toggle("flipped");
   }
 });
 $$(".rate-btn").forEach(b => b.addEventListener("click", () => applyRate(b.dataset.rate)));
@@ -1646,6 +1724,7 @@ function acceptImportText(text){
     state.notes = Object.assign({}, s.notes || {});
     state.meta = Object.assign({dailyNew:20}, s.meta || {});
     state.projects = Array.isArray(s.projects) ? s.projects : [];
+    state.projectScores = Object.assign({}, s.projectScores || {});
     saveState(); refreshAll(); toast("导入成功");
   }catch(err){ toast("导入失败：文件格式不正确"); }
 }
@@ -1662,7 +1741,7 @@ $("#importFile").addEventListener("change", e => {
 $("#btnReset").addEventListener("click", () => {
   if(confirm("确定要清空所有学习进度、错题与备注吗？此操作不可恢复。")){
     localStorage.removeItem(LS_KEY);
-    state = { srs:{}, notes:{}, meta:{ dailyNew:20 }, projects:(state.projects || []).slice() };
+    state = { srs:{}, notes:{}, meta:{ dailyNew:20 }, projects:(state.projects || []).slice(), projectScores:{} };
     refreshAll(); toast("已重置");
   }
 });
