@@ -820,7 +820,7 @@ function buildTypeQuestion(id, seed){
   return { id: p.id, qtype: "type", prompt: "这个产品属于哪种类型？", options: options, correctIndex: options.indexOf(p.type) };
 }
 
-/* 专项答题：选择题按 类型/主要成分/外观/固含量 轮换，另生成约一半产品数的特点判断题；按天固定、隔天不重复 */
+/* 专项答题：选择题按 类型/主要成分/外观/固含量 轮换，另生成约一半产品数的类型判断题；按天固定、隔天不重复 */
 function solidOf(p){
   if(p.specs && p.specs.length){
     const row = p.specs.find(sp => /固含量/.test(sp.key || ""));
@@ -887,32 +887,37 @@ function buildFieldQuestion(p, qtype, seed){
   const options = seededShuffle([correct].concat(opts), seed + 1);
   return { id: p.id, qtype: qtype, prompt: prompt, options: options, correctIndex: options.indexOf(correct) };
 }
-function makeFalseStatement(s){
-  const m = s.match(/\d+(?:\.\d+)?/);
-  if(m){
-    const v = parseFloat(m[0]);
-    const nv = v * 10;
-    const ns = Number.isInteger(nv) ? String(nv) : String(Math.round(nv * 100) / 100);
-    return s.slice(0, m.index) + ns + s.slice(m.index + m[0].length);
+function typeSim(a, b){
+  let best = 0;
+  for(let i = 0; i < a.length; i++){
+    for(let j = 0; j < b.length; j++){
+      let k = 0;
+      while(i + k < a.length && j + k < b.length && a[i + k] === b[j + k]) k++;
+      if(k > best) best = k;
+    }
   }
-  const pairs = [
-    ["促进","抑制"],["提高","降低"],["增强","减弱"],["增加","减少"],
-    ["柔软","硬挺"],["滑爽","粗糙"],["防水","吸水"],["防止","促进"],
-    ["去除","保留"],["润湿","疏水"],["均匀","不均匀"],["优异","较差"],
-    ["高效","低效"],["快速","缓慢"],["强力","微弱"],["良好","较差"]
-  ];
-  for(const pair of pairs){ if(s.includes(pair[0])) return s.replace(pair[0], pair[1], 1); }
-  return null;
+  return best;
 }
-function buildJudgeQuestion(p, seed, idx){
-  const feats = (p.features || []).map(v => String(v).trim()).filter(Boolean);
-  if(!feats.length) return null;
-  const si = (seed + idx * 7) % feats.length;
-  const raw = feats[si];
-  const fake = makeFalseStatement(raw);
-  const isTrue = !fake || ((seed + idx * 11) % 2 === 0);
-  const statement = isTrue ? raw : fake;
-  return { id: p.id, qtype: "tf", prompt: "判断正误：" + statement, options: ["正确", "错误"], correctIndex: isTrue ? 0 : 1 };
+function closeTypesFor(type, cat){
+  const map = {};
+  PRODUCTS.forEach(p => {
+    if(p.type === type) return;
+    if(!map[p.type]) map[p.type] = { cats: [] };
+    if(!map[p.type].cats.includes(p.category)) map[p.type].cats.push(p.category);
+  });
+  const arr = Object.keys(map).map(t => ({
+    t: t,
+    score: typeSim(type, t) * 10 + (map[t].cats.includes(cat) ? 6 : 0)
+  })).filter(x => x.score >= 26);
+  arr.sort((a, b) => b.score - a.score || a.t.localeCompare(b.t));
+  return arr.map(x => x.t);
+}
+function buildTypeJudgeQuestion(p, seed, idx){
+  const correct = p.type;
+  const close = closeTypesFor(correct, p.category);
+  const isTrue = !close.length || ((seed + idx * 11) % 2 === 0);
+  const t = isTrue ? correct : close[(seed + idx) % close.length];
+  return { id: p.id, qtype: "tf", prompt: "判断正误：该产品属于「" + t + "」", options: ["正确", "错误"], correctIndex: isTrue ? 0 : 1 };
 }
 function buildProjectQuestions(pr){
   const base = hashString(pr.id + ":" + dayKey());
@@ -928,12 +933,8 @@ function buildProjectQuestions(pr){
     if(q) mc.push(q);
   });
   const tfCount = Math.max(1, Math.round(order.length / 2));
-  const candidates = order.filter(pid => {
-    const p = byId(pid);
-    return p && p.features && p.features.length;
-  });
-  const tf = seededShuffle(candidates, base + 1).slice(0, tfCount)
-    .map((pid, j) => buildJudgeQuestion(byId(pid), base + 2, j))
+  const tf = seededShuffle(order.slice(), base + 1).slice(0, tfCount)
+    .map((pid, j) => buildTypeJudgeQuestion(byId(pid), base + 2, j))
     .filter(Boolean);
   return mc.concat(tf);
 }
