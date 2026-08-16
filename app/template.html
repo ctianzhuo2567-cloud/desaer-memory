@@ -623,6 +623,11 @@ function renderCard(){
     if(noteFront.competitors) bubbles.appendChild(mkBubble("comp", "竞品", noteFront.competitors));
     if(noteFront.memo) bubbles.appendChild(mkBubble("memo", "备注", noteFront.memo));
   }
+  // 答案面留空：翻到详情页时才填充，避免切卡动画期间提前露出下一张答案
+  $("#fcBack").innerHTML = "";
+  $("#flashcard").classList.remove("flipped");
+}
+function fillCardBack(p){
   const back = $("#fcBack");
   back.innerHTML = "";
   back.appendChild(el("div", {class:"chip"}, p.category + " · " + p.type));
@@ -655,7 +660,6 @@ function renderCard(){
     back.appendChild(lbl("竞品"));
     back.appendChild(el("div", {class:"competitors"}, note.competitors));
   }
-  $("#flashcard").classList.remove("flipped");
 }
 
 function applyRate(q){
@@ -676,6 +680,7 @@ function applyRate(q){
   s.reps += 1;
   if(!s.introDay) s.introDay = dayKey();
   const now = Date.now();
+  const prevInterval = s.interval;
   if(q === "again"){
     // 不认识：本轮稍后再复习一次
     s.lapses += 1;
@@ -687,8 +692,8 @@ function applyRate(q){
     s.interval = 0; s.due = 0;
     session.queue.push(p.id);
   }else if(q === "good"){
-    // 认识：隔一天复习
-    s.interval = 1;
+    // 认识：首次隔 1 天复习，之后隔一周复习，避免每日复习量不断累积
+    s.interval = prevInterval > 0 ? 7 : 1;
     s.due = now + s.interval * DAY;
     session.done += 1;
   }else{
@@ -1598,7 +1603,10 @@ $("#btnStart").addEventListener("click", () => openStudy("combined"));
 $("#btnQuitStudy").addEventListener("click", closeStudy);
 $("#btnQuitQuiz").addEventListener("click", closeQuiz);
 $("#flashcard").addEventListener("click", () => {
-  if(session.idx < session.queue.length) $("#flashcard").classList.toggle("flipped");
+  if(session.idx < session.queue.length){
+    fillCardBack(currentProduct());
+    $("#flashcard").classList.toggle("flipped");
+  }
 });
 $$(".rate-btn").forEach(b => b.addEventListener("click", () => applyRate(b.dataset.rate)));
 $("#btnBack").addEventListener("click", () => history.back());
