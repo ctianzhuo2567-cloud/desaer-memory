@@ -208,9 +208,17 @@
   .q-center .btn{margin-top:10px}
   .week-scores{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:4px}
   .ws-cell{background:var(--tint);border:1px solid var(--line);border-radius:8px;padding:8px 2px;text-align:center}
+  button.ws-cell{font-family:inherit;color:inherit;cursor:pointer}
+  button.ws-cell:active{transform:scale(.97)}
+  button.ws-cell.has-score{background:var(--brand-soft);border-color:#d7e2ff}
   .ws-date{font-size:10px;color:var(--faint);margin-bottom:4px}
   .ws-val{font-size:14px;font-weight:800;color:var(--brand)}
   .ws-val.none{color:var(--faint);font-weight:400}
+  .score-link{border:0;background:none;padding:0;color:var(--brand);font:800 36px/1.2 inherit;cursor:pointer}
+  .score-link::after{content:"查看详情 ›";display:block;margin-top:5px;font-size:12px;font-weight:600}
+  .review-answer{margin-top:8px;padding:9px 10px;border-radius:10px;font-size:13px}
+  .review-answer.mine{background:var(--bad-soft);color:var(--bad)}
+  .review-answer.correct{background:var(--ok-soft);color:var(--ok)}
   .toast{position:fixed;left:50%;bottom:calc(90px + env(safe-area-inset-bottom));transform:translateX(-50%);background:rgba(16,24,40,.92);color:#fff;padding:9px 16px;border-radius:999px;font-size:14px;z-index:99;opacity:0;pointer-events:none;transition:opacity .2s;white-space:nowrap}
   .toast.show{opacity:1}
   .d-head .code,.fc-front .code,.q-code{font-variant-numeric:tabular-nums;letter-spacing:.01em}
@@ -299,6 +307,12 @@
     <section id="view-project" class="view hidden">
       <button class="btn ghost" id="btnProjectBack">‹ 返回</button>
       <div id="projectBody"></div>
+    </section>
+
+    <!-- 专项答题详情 -->
+    <section id="view-score" class="view hidden">
+      <button class="btn ghost" id="btnScoreBack">‹ 返回</button>
+      <div id="scoreBody"></div>
     </section>
 
     <!-- 错题本 -->
@@ -846,7 +860,7 @@ function buildTypeQuestion(id, seed){
   return { id: p.id, qtype: "type", prompt: "这个产品属于哪种类型？", options: options, correctIndex: options.indexOf(p.type) };
 }
 
-/* 专项答题：选择题按 类型/主要成分/外观/固含量 轮换，另生成约一半产品数的类型判断题；按天固定、隔天不重复 */
+/* 专项答题：选择题按 类型/主要成分/外观形态/固含量 轮换，另生成约一半产品数的类型判断题；按天固定、隔天不重复 */
 function solidOf(p){
   if(p.specs && p.specs.length){
     const row = p.specs.find(sp => /固含量/.test(sp.key || ""));
@@ -857,7 +871,19 @@ function solidOf(p){
 function appearanceOf(p){
   if(p.specs && p.specs.length){
     const row = p.specs.find(sp => /外观/.test(sp.key || ""));
-    if(row && row.value) return String(row.value).trim();
+    if(row && row.value){
+      // 外观题只考形态，不把颜色、透明度等细节作为答案。
+      const raw = String(row.value).replace(/\s+/g, "");
+      if(/液体或膏/.test(raw)) return "液体或膏状";
+      if(/乳液/.test(raw)) return "乳液";
+      if(/浆/.test(raw)) return "浆状";
+      if(/膏/.test(raw)) return "膏状";
+      if(/粘稠/.test(raw)) return "粘稠液体";
+      if(/粉/.test(raw)) return "粉体";
+      if(/颗粒/.test(raw)) return "颗粒";
+      if(/固体/.test(raw)) return "固体";
+      if(/液体/.test(raw)) return "液体";
+    }
   }
   return null;
 }
@@ -901,7 +927,7 @@ function buildFieldQuestion(p, qtype, seed){
     correct = appearanceOf(p);
     if(!correct) return null;
     pool = distractorPool("appearance", correct).filter(v => !ownValues(p, "appearance").includes(v));
-    prompt = "以下哪项是「" + p.code + "」的外观？";
+    prompt = "以下哪项是「" + p.code + "」的外观形态？";
   }else if(qtype === "solid"){
     correct = solidOf(p);
     if(!correct) return null;
@@ -970,7 +996,7 @@ function openProjectQuiz(projId){
   const questions = buildProjectQuestions(pr);
   if(!questions.length){ toast("暂无可出题的产品"); return; }
   quiz = {
-    round: 1, queue: questions, idx: 0, wrong: [], timer: null, current: null, projectId: projId,
+    round: 1, queue: questions, idx: 0, wrong: [], errors: [], timer: null, current: null, projectId: projId,
     stats: { r1c: 0, r1w: 0, r2c: 0, r2w: 0 }
   };
   $("#quizOverlay").classList.remove("hidden");
@@ -1043,6 +1069,17 @@ function answerQuiz(i){
     opts[i].classList.add("wrong");
     opts[i].classList.remove("dim");
     if(!quiz.projectId) recordQuizResult(id, false);
+    if(quiz.projectId){
+      const p = byId(id);
+      quiz.errors.push({
+        id: id,
+        code: p ? p.code : "",
+        name: p ? p.name : "",
+        prompt: q.prompt,
+        answer: q.options[i] || "—",
+        correct: q.options[correctIndex] || "—"
+      });
+    }
     if(quiz.round === 1){ quiz.stats.r1w += 1; quiz.wrong.push(id); }
     else quiz.stats.r2w += 1;
   }
@@ -1083,14 +1120,17 @@ function endQuizRound(){
   const d = el("div", {class: "muted"});
   if(quiz.projectId){
     const pct = total > 0 ? Math.round(quiz.stats.r1c / total * 100) : 0;
-    box.appendChild(el("div", {style:"font-size:36px;font-weight:800;color:var(--brand)"}, "得分 " + pct + "%"));
+    const scoreDate = dayKey();
+    const scoreButton = el("button", {class:"score-link", id:"btnProjectScoreDetail", type:"button", title:"查看本次答题详情"}, "得分 " + pct + "%");
+    scoreButton.addEventListener("click", () => openProjectScoreDetail(quiz.projectId, scoreDate, true));
+    box.appendChild(scoreButton);
     d.appendChild(el("div", null, "共 " + total + " 题，答对 " + quiz.stats.r1c + " 题"));
     d.appendChild(el("div", null, "专项答题不进错题本，明天自动换一批新题目"));
     const pr = projById(quiz.projectId);
     if(pr && total > 0){
       state.projectScores = state.projectScores || {};
       const map = state.projectScores[pr.id] = state.projectScores[pr.id] || {};
-      map[dayKey()] = { c: quiz.stats.r1c, t: total };
+      map[scoreDate] = { c: quiz.stats.r1c, t: total, errors: (quiz.errors || []).slice() };
       saveState();
     }
   }else{
@@ -1179,9 +1219,10 @@ function renderProject(){
   for(let i = 6; i >= 0; i--){
     const k = dayKey(new Date(Date.now() - i * DAY));
     const r = scores[k];
-    const cell = el("div", {class:"ws-cell"});
+    const cell = el(r ? "button" : "div", r ? {class:"ws-cell has-score", type:"button", title:"查看答题详情"} : {class:"ws-cell"});
     cell.appendChild(el("div", {class:"ws-date"}, k.slice(5).replace("-", "/")));
     cell.appendChild(el("div", {class:"ws-val" + (r ? "" : " none")}, r ? Math.round(r.c / r.t * 100) + "%" : "—"));
+    if(r) cell.addEventListener("click", () => openProjectScoreDetail(pr.id, k, false));
     grid.appendChild(cell);
   }
   sc.appendChild(grid);
@@ -1210,6 +1251,66 @@ function renderProject(){
     ops.appendChild(bDel);
   }
   body.appendChild(ops);
+}
+
+function openProjectScoreDetail(projId, scoreDate, fromQuiz){
+  const score = state.projectScores && state.projectScores[projId] && state.projectScores[projId][scoreDate];
+  if(!score){ toast("未找到这次答题记录"); return; }
+  $("#view-score").dataset.projectId = projId;
+  $("#view-score").dataset.scoreDate = scoreDate;
+  navTop = { view:"score", projId:projId, scoreDate:scoreDate };
+  if(fromQuiz){
+    if(quiz) clearTimeout(quiz.timer);
+    $("#quizOverlay").classList.add("hidden");
+    document.body.style.overflow = "";
+    history.replaceState(navTop, "");
+  }else{
+    navDepth++;
+    history.pushState(navTop, "");
+  }
+  renderView("score");
+}
+
+function renderScoreDetail(){
+  const view = $("#view-score");
+  const projId = view.dataset.projectId;
+  const scoreDate = view.dataset.scoreDate;
+  const pr = projById(projId);
+  const score = state.projectScores && state.projectScores[projId] && state.projectScores[projId][scoreDate];
+  if(!score){ show("projects"); return; }
+  const body = $("#scoreBody");
+  body.innerHTML = "";
+  const pct = score.t ? Math.round(score.c / score.t * 100) : 0;
+  const head = el("div", {class:"card"});
+  head.appendChild(el("div", {class:"sec-title", style:"margin:0 0 6px"}, scoreDate));
+  head.appendChild(el("div", {style:"font-size:22px;font-weight:800"}, pr ? pr.name : "专项答题"));
+  head.appendChild(el("div", {style:"font-size:36px;font-weight:800;color:var(--brand);margin-top:8px"}, "得分 " + pct + "%"));
+  head.appendChild(el("div", {class:"muted", style:"font-size:13px;margin-top:4px"}, "共 " + score.t + " 题，答对 " + score.c + " 题"));
+  body.appendChild(head);
+
+  const errors = Array.isArray(score.errors) ? score.errors : null;
+  body.appendChild(el("div", {class:"sec-title"}, errors ? "错误题目（" + errors.length + "）" : "错误题目"));
+  if(!errors){
+    body.appendChild(el("div", {class:"card muted", style:"font-size:13px"}, "这条成绩创建于逐题记录功能上线之前，未保存答题详情。"));
+    return;
+  }
+  if(!errors.length){
+    const empty = el("div", {class:"card empty", style:"display:block;padding:28px 16px"});
+    empty.appendChild(el("div", {class:"big"}, "🎯"));
+    empty.appendChild(el("div", null, "本次没有答错的题目"));
+    body.appendChild(empty);
+    return;
+  }
+  errors.forEach((err, i) => {
+    const card = el("div", {class:"card"});
+    card.appendChild(el("div", {class:"chip bad"}, "第 " + (i + 1) + " 题 · 答错"));
+    card.appendChild(el("div", {style:"font-weight:800;margin-top:10px"}, err.code));
+    if(err.name) card.appendChild(el("div", {class:"muted", style:"font-size:13px"}, err.name));
+    card.appendChild(el("div", {style:"font-weight:600;margin-top:10px"}, err.prompt));
+    card.appendChild(el("div", {class:"review-answer mine"}, "你的答案：" + err.answer));
+    card.appendChild(el("div", {class:"review-answer correct"}, "正确答案：" + err.correct));
+    body.appendChild(card);
+  });
 }
 
 function openProject(id){
@@ -1375,12 +1476,13 @@ function renderView(view){
   $$(".view").forEach(v => v.classList.add("hidden"));
   $("#view-" + view).classList.remove("hidden");
   $$(".tabbar button").forEach(b => b.classList.toggle("active", b.dataset.tab === view));
-  const titles = {home:"百品记", library:"产品库", projects:"专项学习", project:"专项项目", wrong:"错题本", me:"我的", detail:"产品详情"};
+  const titles = {home:"百品记", library:"产品库", projects:"专项学习", project:"专项项目", score:"答题详情", wrong:"错题本", me:"我的", detail:"产品详情"};
   $("#appTitle").textContent = titles[view] || "百品记";
   if(view === "home") refreshHome();
   if(view === "library") refreshLibrary();
   if(view === "projects") renderProjects();
   if(view === "project") renderProject();
+  if(view === "score") renderScoreDetail();
   if(view === "wrong") refreshWrong();
   if(view === "detail") refreshDetail();
   window.scrollTo(0,0);
@@ -1745,6 +1847,7 @@ $("#studyOverlay").addEventListener("click", e => {
 $$(".rate-btn").forEach(b => b.addEventListener("click", () => applyRate(b.dataset.rate)));
 $("#btnBack").addEventListener("click", () => history.back());
 $("#btnProjectBack").addEventListener("click", () => history.back());
+$("#btnScoreBack").addEventListener("click", () => history.back());
 $("#btnNewProject").addEventListener("click", () => openPicker("new"));
 $("#btnPickClose").addEventListener("click", closePicker);
 $("#btnPickConfirm").addEventListener("click", confirmPick);

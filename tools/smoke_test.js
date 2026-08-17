@@ -28,6 +28,12 @@ function assert(cond, msg) {
   assert((await page.textContent("#stPending")) === "259", "待学习初始应为 259");
   assert((await page.textContent("#stNew")) === "20", "新卡默认 20");
 
+  // 专项答题的外观只应使用形态，不包含颜色、透明度等描述
+  const appearanceShapes = await page.evaluate(() => [...new Set(PRODUCTS.map(appearanceOf).filter(Boolean))]);
+  const allowedShapes = ["液体", "粘稠液体", "粉体", "膏状", "乳液", "浆状", "颗粒", "固体", "液体或膏状"];
+  assert(appearanceShapes.includes("液体") && !appearanceShapes.includes("透明液体"), "外观题应归类为简洁形态");
+  assert(appearanceShapes.every(shape => allowedShapes.includes(shape)), "外观题不应出现颜色或透明度描述: " + appearanceShapes.join("、"));
+
   // 手势返回：打开学习浮层后返回，应关闭浮层并留在首页，而不是退出
   await page.click("#btnStart");
   await page.waitForTimeout(250);
@@ -213,6 +219,50 @@ function assert(cond, msg) {
   const filteredPickCodes = await page.$$eval("#pickList .row .t", els => els.map(e => e.textContent.trim()));
   assert(filteredPickCodes.length >= 1 && filteredPickCodes.every(code => code.includes("KF")), "专项分类筛选应可叠加搜索");
   await page.click("#btnPickClose");
+  await page.waitForTimeout(200);
+
+  // 专项得分可查看当次错题、自己的答案与正确答案，也可从近 7 天分数再次进入
+  await page.evaluate(() => {
+    const project = {
+      id: "smoke_project",
+      name: "测试专项",
+      productIds: PRODUCTS.slice(0, 8).map(p => p.id),
+      createdAt: Date.now(),
+      completed: false,
+      completedAt: 0
+    };
+    state.projects = [project];
+    state.projectScores = {};
+    saveState();
+    openProjectQuiz(project.id);
+  });
+  await page.waitForTimeout(200);
+  const expectedCorrect = await page.evaluate(() => {
+    const q = quiz.current;
+    const wrongIndex = (q.correctIndex + 1) % q.options.length;
+    document.querySelectorAll(".quiz-card .opt")[wrongIndex].click();
+    return q.options[q.correctIndex];
+  });
+  await page.waitForTimeout(100);
+  await page.evaluate(() => {
+    clearTimeout(quiz.timer);
+    quiz.timer = null;
+    quiz.idx = quiz.queue.length;
+    endQuizRound();
+  });
+  await page.waitForTimeout(100);
+  assert(await page.$("#btnProjectScoreDetail"), "专项答题结束后得分应可点击查看详情");
+  await page.click("#btnProjectScoreDetail");
+  await page.waitForTimeout(150);
+  const scoreDetail = await page.textContent("#scoreBody");
+  assert(scoreDetail.includes("错误题目") && scoreDetail.includes("你的答案") && scoreDetail.includes("正确答案：" + expectedCorrect), "答题详情应显示错题和正确答案");
+  await page.goBack();
+  await page.waitForTimeout(150);
+  assert(await page.$("#projectBody .ws-cell.has-score"), "项目页应显示可点击的当天得分");
+  await page.click("#projectBody .ws-cell.has-score");
+  await page.waitForTimeout(150);
+  assert((await page.textContent("#scoreBody")).includes("正确答案：" + expectedCorrect), "近 7 天得分应能再次打开答题详情");
+  await page.goBack();
 
   const errs = errors.filter(e => !e.includes("favicon"));
   console.log("学习首卡:", firstCode, "| 答错反馈:", feedback);
