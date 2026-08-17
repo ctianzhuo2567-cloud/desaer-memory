@@ -6,7 +6,7 @@
 ## 项目是什么
 
 - 单文件网页应用（PWA），源码在 `app/template.html`，所有界面和逻辑都在这一个文件里。
-- 产品数据在 `data/products.json`（259 个产品），构建时注入到网页里。
+- 产品数据在 `data/products.json`（263 个产品），构建时注入到网页里。
 - 安卓壳（APK）只是加载线上网页，网页更新后手机端无需重装。
 - 线上地址：`https://ctianzhuo2567-cloud.github.io/desaer-memory/`
 - 远程仓库：`git@github.com:ctianzhuo2567-cloud/desaer-memory.git`（分支 `master`）
@@ -52,7 +52,7 @@
 - **不要提高 `dataEpoch`**：那会清空所有用户的学习进度。只有产品 `id` 体系变更时才允许。
 - 产品 `id` 是稳定的内部主键（如 `desoagenkf`），学习进度、错题、专项项目都依赖它，
   不要随增删产品而改动。
-- 产品后台编号 `no`（1–259）：只用于数据管理，**界面不显示**。
+- 产品后台编号 `no`（1–263）：只用于数据管理，**界面不显示**。
   新增产品用 `python tools/assign_no.py data/products.json` 自动补号（新号 = 最大号 + 1，删除空号不复用）。
 - `android/` 目录（MainActivity.java、AndroidManifest.xml、build.ps1、desaer-release.jks 等）
   除非用户明确要求，**不要提交**，也不要随意改签名相关文件。

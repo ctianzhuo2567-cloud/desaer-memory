@@ -25,8 +25,21 @@ function assert(cond, msg) {
   });
 
   await page.goto(pathToFileURL(path.resolve(html)).href, { waitUntil: "load" });
-  assert((await page.textContent("#stPending")) === "259", "待学习初始应为 259");
+  assert((await page.textContent("#stPending")) === "263", "待学习初始应为 263");
   assert((await page.textContent("#stNew")) === "20", "新卡默认 20");
+
+  // 新增产品应进入产品库；ESP 按用户要求归入浸水分类，且“关于”页只保留版本信息。
+  const catalogUpdate = await page.evaluate(() => {
+    const wanted = ["DESOPON FS", "DESOPON MLS", "DESOATEN DR", "DESOAGEN MO-20", "DESOBATE ESP"];
+    return {
+      products: PRODUCTS.filter(p => wanted.includes(p.code)).map(p => ({ code:p.code, category:p.category, type:p.type })),
+      hasSourceText: document.querySelector("#view-me").textContent.includes("产品数据来自")
+    };
+  });
+  assert(catalogUpdate.products.length === 5, "产品库应包含 5 个指定产品且不重复");
+  const esp = catalogUpdate.products.find(p => p.code === "DESOBATE ESP");
+  assert(esp && esp.category === "浸水" && esp.type === "浸水酶", "ESP 应归入浸水分类并标为浸水酶");
+  assert(!catalogUpdate.hasSourceText, "关于页不应再显示产品数据来源说明");
 
   // 专项答题的外观只应使用形态，不包含颜色、透明度等描述
   const appearanceShapes = await page.evaluate(() => [...new Set(PRODUCTS.map(appearanceOf).filter(Boolean))]);
@@ -166,45 +179,37 @@ function assert(cond, msg) {
   assert(mastery.stage === "mastered" && mastery.wrong === false && mastery.interval >= 120,
     "累计答对 3 次应掌握: " + JSON.stringify(mastery));
   await page.evaluate(() => refreshHome());
-  assert((await page.textContent("#stPending")) === "255", "待学习应随学习减少: " + (await page.textContent("#stPending")));
+  assert((await page.textContent("#stPending")) === "259", "待学习应随学习减少: " + (await page.textContent("#stPending")));
 
   // 基础回归
   await page.click('.tabbar button[data-tab="library"]');
   const groupTitles = await page.$$eval("#libList .sec-title", els => els.map(e => e.textContent));
   assert(groupTitles.length >= 15, "产品库应有多个品类分组");
-  await page.click('.tabbar button[data-tab="search"]');
   await page.fill("#searchInput", "德赛精 KF");
   await page.waitForTimeout(350);
-  const hits = await page.$$eval("#searchResult .row", els => els.length);
+  const hits = await page.$$eval("#libList .row", els => els.length);
   assert(hits >= 1, "搜索应命中德赛精 KF");
-  await page.click("#searchResult .row");
+  await page.click("#libList .row");
   await page.waitForTimeout(200);
   const detailCode = (await page.textContent(".d-head .code")).trim();
   assert(detailCode.includes("KF"), "详情页应显示 KF");
   const specValues = await page.$$eval("#view-detail .kv .v", els => els.length);
   assert(specValues >= 3, "详情页应有规格指标");
   await page.click("#btnBack");
-  await page.click('.tabbar button[data-tab="search"]');
+  await page.waitForTimeout(300);
   await page.fill("#searchInput", "D Pigments");
   await page.waitForTimeout(350);
-  await page.click("#searchResult .row");
+  await page.click("#libList .row");
   await page.waitForTimeout(200);
   const seriesRows = await page.$$eval("#view-detail table.series tr", els => els.length);
   assert(seriesRows >= 15, "颜料膏应有颜色系列表");
 
-  // 系统返回：详情 -> 搜索 -> 产品库 -> 首页
-  await page.goBack();
-  await page.waitForTimeout(400);
-  const backState1 = await page.evaluate(() => [...document.querySelectorAll(".view")].filter(v => !v.classList.contains("hidden")).map(v => v.id).join(","));
-  assert(backState1 === "view-search", "返回应回到搜索页, 实际: " + backState1);
-  await page.goBack();
-  await page.waitForTimeout(400);
-  const backState2 = await page.evaluate(() => [...document.querySelectorAll(".view")].filter(v => !v.classList.contains("hidden")).map(v => v.id).join(","));
-  assert(backState2 === "view-library", "返回应回到产品库, 实际: " + backState2);
-  await page.goBack();
-  await page.waitForTimeout(400);
-  const backState3 = await page.evaluate(() => [...document.querySelectorAll(".view")].filter(v => !v.classList.contains("hidden")).map(v => v.id).join(","));
-  assert(backState3 === "view-home", "返回应回到首页, 实际: " + backState3);
+  // 返回详情前的产品库，再切回首页
+  await page.click("#btnBack");
+  await page.waitForTimeout(300);
+  const backState = await page.evaluate(() => [...document.querySelectorAll(".view")].filter(v => !v.classList.contains("hidden")).map(v => v.id).join(","));
+  assert(backState === "view-library", "返回应回到产品库, 实际: " + backState);
+  await page.click('.tabbar button[data-tab="home"]');
 
   // 专项选产品：支持按与产品库相同的分类筛选，且可叠加搜索
   await page.click('.tabbar button[data-tab="projects"]');
@@ -234,6 +239,7 @@ function assert(cond, msg) {
     state.projects = [project];
     state.projectScores = {};
     saveState();
+    openProject(project.id);
     openProjectQuiz(project.id);
   });
   await page.waitForTimeout(200);
