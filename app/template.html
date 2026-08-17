@@ -419,6 +419,7 @@
         <span>🔍</span>
         <input id="pickInput" type="search" placeholder="搜索产品代号或中文名" autocomplete="off">
       </div>
+      <div class="chips" id="pickCatChips" style="margin-bottom:4px"></div>
       <div id="pickList"></div>
     </div>
     <div class="ov-actions">
@@ -1269,6 +1270,8 @@ function openPicker(mode, projId){
   $("#pickName").value = pickMode.mode === "new" ? "" : pr.name;
   pickSelected = pr ? pr.productIds.slice() : [];
   $("#pickInput").value = "";
+  $("#pickCatChips").dataset.cat = "全部";
+  renderPickCategories();
   refreshPickList();
   $("#pickOverlay").classList.remove("hidden");
   document.body.style.overflow = "hidden";
@@ -1289,11 +1292,33 @@ function updatePickSelected(cb, id){
   }
   $("#btnPickConfirm").textContent = "确认（" + pickSelected.length + "）";
 }
+function renderPickCategories(){
+  const chips = $("#pickCatChips");
+  chips.innerHTML = "";
+  let currentCat = chips.dataset.cat || "全部";
+  const cats = ["全部"].concat(CATEGORY_ORDER.filter(c => PRODUCTS.some(p => p.category === c)));
+  if(!cats.includes(currentCat)) currentCat = "全部";
+  chips.dataset.cat = currentCat;
+  cats.forEach(c => {
+    const b = el("button", null, c);
+    if(c === currentCat) b.classList.add("active");
+    b.addEventListener("click", () => {
+      chips.dataset.cat = c;
+      renderPickCategories();
+      refreshPickList();
+    });
+    chips.appendChild(b);
+  });
+}
 function refreshPickList(){
   const q = norm($("#pickInput").value);
+  const currentCat = $("#pickCatChips").dataset.cat || "全部";
   const list = $("#pickList");
   list.innerHTML = "";
-  const rows = PRODUCTS.filter(p => !q || norm(p.code).includes(q) || norm(p.name).includes(q));
+  const rows = PRODUCTS.filter(p =>
+    (currentCat === "全部" || p.category === currentCat)
+    && (!q || norm(p.code).includes(q) || norm(p.name).includes(q))
+  );
   rows.forEach(p => {
     const row = el("div", {class:"row", style:"margin:0"});
     const cb = el("input", {type:"checkbox", style:"width:18px;height:18px;flex:0 0 auto"});

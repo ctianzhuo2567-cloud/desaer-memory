@@ -200,6 +200,20 @@ function assert(cond, msg) {
   const backState3 = await page.evaluate(() => [...document.querySelectorAll(".view")].filter(v => !v.classList.contains("hidden")).map(v => v.id).join(","));
   assert(backState3 === "view-home", "返回应回到首页, 实际: " + backState3);
 
+  // 专项选产品：支持按与产品库相同的分类筛选，且可叠加搜索
+  await page.click('.tabbar button[data-tab="projects"]');
+  await page.click("#btnNewProject");
+  await page.waitForTimeout(200);
+  const pickCats = await page.$$eval("#pickCatChips button", els => els.map(e => e.textContent.trim()));
+  assert(pickCats.includes("全部") && pickCats.includes("浸水") && pickCats.includes("脱脂"), "专项选产品应显示产品库分类");
+  await page.locator("#pickCatChips button", { hasText: "浸水" }).click();
+  const pickRowsAreSoaking = await page.$$eval("#pickList .row .s", els => els.length > 0 && els.every(e => e.textContent.includes("· 浸水")));
+  assert(pickRowsAreSoaking, "选择浸水分类后应只显示浸水产品");
+  await page.fill("#pickInput", "KF");
+  const filteredPickCodes = await page.$$eval("#pickList .row .t", els => els.map(e => e.textContent.trim()));
+  assert(filteredPickCodes.length >= 1 && filteredPickCodes.every(code => code.includes("KF")), "专项分类筛选应可叠加搜索");
+  await page.click("#btnPickClose");
+
   const errs = errors.filter(e => !e.includes("favicon"));
   console.log("学习首卡:", firstCode, "| 答错反馈:", feedback);
   console.log("答题队列:", quizTotal, "| 首个:", firstQuizCode, "| 学习中:", studyState.learning, "->", quizState.learning);
