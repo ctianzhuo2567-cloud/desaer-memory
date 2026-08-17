@@ -179,6 +179,7 @@
   .fc-back .mini b{color:var(--sub);font-weight:600;display:block;font-size:11px}
   .fc-back .competitors{background:var(--warn-soft);border-radius:10px;padding:8px 10px;font-size:13px;color:var(--warn)}
   .ov-actions{padding:8px 12px calc(14px + env(safe-area-inset-bottom));background:var(--card);border-top:1px solid var(--line)}
+  .study-detail{display:flex;width:100%;margin-bottom:8px;padding:8px 12px;font-size:13px}
   .rate-row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
   .rate-btn{border:1px solid var(--line);background:var(--tint);border-radius:12px;padding:12px 4px;font-family:inherit;cursor:pointer;text-align:center}
   .rate-btn b{display:block;font-size:15px}
@@ -386,6 +387,7 @@
       </div>
     </div>
     <div class="ov-actions">
+      <button class="btn sm study-detail" id="btnStudyDetail">查看产品详情 / 补充竞品与备注</button>
       <div class="rate-row">
         <button class="rate-btn again" data-rate="again"><b>不认识</b></button>
         <button class="rate-btn hard" data-rate="hard"><b>模糊</b></button>
@@ -605,6 +607,29 @@ function closeStudy(){
   document.body.style.overflow = "";
   refreshAll();
   history.back();
+}
+
+function resumeStudy(){
+  if(!session || !session.queue || !session.queue.length){
+    renderView("home");
+    return;
+  }
+  $("#studyOverlay").classList.remove("hidden");
+  $("#ovBody").innerHTML = FLASHCARD_HTML;
+  document.body.style.overflow = "hidden";
+  if(session.idx >= session.queue.length) renderDone(); else renderCard();
+}
+
+function openStudyDetail(){
+  const p = currentProduct();
+  if(!p || session.idx >= session.queue.length) return;
+  $("#studyOverlay").classList.add("hidden");
+  document.body.style.overflow = "";
+  $("#view-detail").dataset.id = p.id;
+  navTop = { view: "detail", detailId: p.id, returnToStudy: true };
+  navDepth++;
+  history.pushState(navTop, "");
+  renderView("detail");
 }
 
 function currentProduct(){ return byId(session.queue[session.idx]); }
@@ -1386,6 +1411,10 @@ window.addEventListener("popstate", function(e){
   if(navDepth > 0) navDepth--;
   closeOverlaysSilently();
   navTop = (st && (st.view || st.overlay)) ? st : { view: "home" };
+  if(navTop.overlay === "study"){
+    resumeStudy();
+    return;
+  }
   if(navTop.view){
     if(navTop.detailId) $("#view-detail").dataset.id = navTop.detailId;
     if(navTop.projId) $("#view-project").dataset.id = navTop.projId;
@@ -1569,14 +1598,14 @@ function refreshDetail(){
   const note = state.notes[p.id] || {};
   const editCard = el("div", {class:"card"});
   editCard.appendChild(el("div", {class:"sec-title", style:"margin:0 0 8px"}, "竞品（可编辑）"));
-  const ta1 = el("textarea", {class:"edit", placeholder:"说明书未收录竞品信息，可在此补充，例如：xxx、yyy"});
+  const ta1 = el("textarea", {class:"edit", id:"competitorsInput", placeholder:"说明书未收录竞品信息，可在此补充，例如：xxx、yyy"});
   ta1.value = note.competitors || "";
   editCard.appendChild(ta1);
   editCard.appendChild(el("div", {class:"sec-title", style:"margin:14px 0 8px"}, "备注（可编辑）"));
-  const ta2 = el("textarea", {class:"edit", placeholder:"自己的记忆要点、客户场景等"});
+  const ta2 = el("textarea", {class:"edit", id:"memoInput", placeholder:"自己的记忆要点、客户场景等"});
   ta2.value = note.memo || "";
   editCard.appendChild(ta2);
-  const bSave = el("button", {class:"btn primary sm", style:"margin-top:10px"}, "保存");
+  const bSave = el("button", {class:"btn primary sm", id:"btnSaveNotes", style:"margin-top:10px"}, "保存");
   bSave.addEventListener("click", () => {
     state.notes[p.id] = { competitors: ta1.value.trim(), memo: ta2.value.trim() };
     saveState(); toast("已保存");
@@ -1679,6 +1708,7 @@ document.addEventListener("click", e => {
 });
 $("#btnStart").addEventListener("click", () => openStudy("combined"));
 $("#btnQuitStudy").addEventListener("click", closeStudy);
+$("#btnStudyDetail").addEventListener("click", openStudyDetail);
 $("#btnQuitQuiz").addEventListener("click", closeQuiz);
 $("#studyOverlay").addEventListener("click", e => {
   const fc = e.target.closest("#flashcard");

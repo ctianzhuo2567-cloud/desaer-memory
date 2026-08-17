@@ -62,6 +62,22 @@ function assert(cond, msg) {
   await page.click("#btnStart");
   await page.waitForTimeout(250);
   const firstCode = (await page.textContent("#fcCode")).trim();
+
+  // 学习中可进入详情补充竞品与备注，返回后应回到同一张卡片
+  await page.click("#btnStudyDetail");
+  await page.waitForTimeout(250);
+  assert(await page.evaluate(() => !document.querySelector("#view-detail").classList.contains("hidden")), "学习中应能打开产品详情");
+  assert((await page.textContent(".d-head .code")).trim() === firstCode, "详情应对应当前学习卡片");
+  await page.fill("#competitorsInput", "学习中测试竞品");
+  await page.fill("#memoInput", "学习中测试备注");
+  await page.click("#btnSaveNotes");
+  await page.goBack();
+  await page.waitForTimeout(300);
+  assert(await page.evaluate(() => !document.querySelector("#studyOverlay").classList.contains("hidden")), "详情返回后应继续学习");
+  assert((await page.textContent("#fcCode")).trim() === firstCode, "详情返回后应回到同一张学习卡片");
+  const studyNotes = await page.textContent("#fcBubbles");
+  assert(studyNotes.includes("学习中测试竞品") && studyNotes.includes("学习中测试备注"), "学习中保存的竞品与备注应立即显示");
+
   await page.click('.rate-btn[data-rate="again"]');
   await page.waitForTimeout(200);
   for (let i = 0; i < 15; i++) {
