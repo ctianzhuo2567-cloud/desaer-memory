@@ -236,8 +236,8 @@ function assert(cond, msg) {
   await page.waitForTimeout(150);
   await page.click("#btnPlanDeep");
   await page.waitForTimeout(100);
-  const deepPool = await page.evaluate(() => ({ selected:state.plans.deep.selectedIds.length, active:activePlan, fresh:newRemaining("deep") }));
-  assert(deepPool.selected === 1 && deepPool.active === "deep" && deepPool.fresh === 1, "详情页应能一键加入深度掌握产品池");
+  const deepPool = await page.evaluate(() => ({ selected:state.plans.deep.selectedIds.length, active:activePlan, fresh:newRemaining("deep"), hasSummary:!!document.querySelector("#planSummary"), brand:getComputedStyle(document.body).getPropertyValue("--brand").trim() }));
+  assert(deepPool.selected === 1 && deepPool.active === "deep" && deepPool.fresh === 1 && !deepPool.hasSummary && deepPool.brand === "#766d91", "深度掌握应使用莫兰迪紫，且不显示方案概览卡");
   const phQuestion = await page.evaluate(() => {
     const p = PRODUCTS.find(p => phOf(p) && deepDistractorPool("ph", phOf(p)).length >= 3);
     if(!p) return null;

@@ -23,6 +23,10 @@
     --warn:#b45309; --warn-soft:#faf1e4;
     --radius:14px; --shadow:0 1px 2px rgba(25,25,23,.04);
   }
+  body[data-plan="deep"]{
+    /* 深度掌握使用低饱和莫兰迪紫，与快速认型的学习蓝清晰区分。 */
+    --brand:#766d91; --brand-soft:#f0edf6;
+  }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;padding:0}
   body{
@@ -88,9 +92,6 @@
   .plan-tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
   .plan-tabs button{border:1px solid var(--line);background:var(--card);border-radius:12px;padding:10px;font:600 14px inherit;color:var(--sub)}
   .plan-tabs button.active{background:var(--brand);border-color:var(--brand);color:#fff}
-  .plan-summary{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
-  .plan-summary .item{border:1px solid var(--line);border-radius:10px;padding:9px 10px;font-size:12px;color:var(--sub)}
-  .plan-summary .item b{display:block;font-size:14px;color:var(--ink);margin-bottom:2px}
   /* rows */
   .row{display:flex;align-items:center;gap:10px;padding:12px 4px;border-bottom:1px solid var(--line)}
   .row:last-child{border-bottom:0}
@@ -257,7 +258,6 @@
         <button id="btnPlanQuick" type="button">快速认型</button>
         <button id="btnPlanDeep" type="button">深度掌握</button>
       </div>
-      <div class="plan-summary" id="planSummary"></div>
       <div class="stats">
         <div class="stat"><div class="num" id="stPending">0</div><div class="lbl">方案待学习</div></div>
         <div class="stat"><div class="num" id="stDue">0</div><div class="lbl">今日待复习</div></div>
@@ -1747,10 +1747,9 @@ function planStats(key){
 }
 function refreshHome(){
   const stats = planStats(activePlan);
-  const quick = planStats("quick"), deep = planStats("deep");
+  document.body.dataset.plan = activePlan;
   $("#btnPlanQuick").classList.toggle("active", activePlan === "quick");
   $("#btnPlanDeep").classList.toggle("active", activePlan === "deep");
-  $("#planSummary").innerHTML = "<div class='item'><b>快速认型</b>到期 " + quick.due + " · 新卡 " + quick.fresh + "<br>学习中 " + quick.learning + " · 已认型 " + quick.mastered + " · 错题 " + quick.wrong + "</div><div class='item'><b>深度掌握</b>到期 " + deep.due + " · 新卡 " + deep.fresh + "<br>学习中 " + deep.learning + " · 已掌握 " + deep.mastered + " · 错题 " + deep.wrong + "</div>";
   $("#stPending").textContent = stats.pending;
   $("#stDue").textContent = stats.due;
   $("#stNew").textContent = stats.fresh;
