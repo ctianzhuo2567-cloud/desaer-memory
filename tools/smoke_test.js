@@ -28,6 +28,14 @@ function assert(cond, msg) {
   assert((await page.textContent("#stPending")) === "263", "待学习初始应为 263");
   assert((await page.textContent("#stNew")) === "20", "新卡默认 20");
 
+  // 旧版单一进度必须一次性迁移到快速认型，且不误写入深度掌握。
+  const migrated = await page.evaluate(() => {
+    const old = { srs:{demo:{reps:2, interval:7, due:Date.now(), wrong:false, stage:"reviewing"}}, meta:{dailyNew:20}, notes:{demo:{memo:"保留"}} };
+    const next = normalizeState(old);
+    return { quick:next.plans.quick.srs.demo, deepCount:Object.keys(next.plans.deep.srs).length, quickDaily:next.plans.quick.meta.dailyNew, note:next.notes.demo.memo };
+  });
+  assert(migrated.quick && migrated.quick.level === 3 && migrated.deepCount === 0 && migrated.quickDaily === 20 && migrated.note === "保留", "旧进度应迁移到快速认型并保留备注");
+
   // 新增产品应进入产品库；ESP 按用户要求归入浸水分类，且“关于”页只保留版本信息。
   const catalogUpdate = await page.evaluate(() => {
     const wanted = ["DESOPON FS", "DESOPON MLS", "DESOATEN DR", "DESOAGEN MO-20", "DESOBATE ESP"];
@@ -56,20 +64,23 @@ function assert(cond, msg) {
   assert(await page.evaluate(() => document.querySelector("#studyOverlay").classList.contains("hidden")), "返回应关闭学习浮层");
   assert(await page.evaluate(() => !document.querySelector("#view-home").classList.contains("hidden")), "返回后应仍在首页");
 
-  // 每日新产品数改为 3
+  // 快速认型每日新产品数改为 3
   await page.click('.tabbar button[data-tab="me"]');
-  await page.fill("#dailyNew", "3");
-  await page.dispatchEvent("#dailyNew", "change");
+  await page.evaluate(() => {
+    state.plans.quick.meta.dailyNew = 3;
+    state.plans.quick.meta.batchDay = "";
+    saveState();
+  });
   await page.click('.tabbar button[data-tab="home"]');
 
   // 注入一条“昨天的错题”，验证次日排在最前
   const targetCode = await page.evaluate(() => {
     const st = JSON.parse(localStorage.getItem("desaar_memory_v1"));
-    const batch = st.meta.batch || [];
+    const batch = st.plans.quick.meta.batch || [];
     const target = PRODUCTS.find(p => !batch.includes(p.id));
-    st.srs[target.id] = {
-      reps: 0, lapses: 0, ease: 2.5, interval: 0, due: 0,
-      wrong: true, lastWrong: Date.now() - 86400000, introDay: "", stage: "wrong", quizCorrect: 0
+    st.plans.quick.srs[target.id] = {
+      reps: 0, lapses: 0, interval: 0, due: 0,
+      wrong: true, lastWrong: Date.now() - 86400000, introDay: "", stage: "wrong", quizCorrect: 0, level:-1, mastered:false, plan:"quick"
     };
     localStorage.setItem("desaar_memory_v1", JSON.stringify(st));
     return target.code;
@@ -114,8 +125,8 @@ function assert(cond, msg) {
   const studyState = await page.evaluate((firstCode) => {
     const st = JSON.parse(localStorage.getItem("desaar_memory_v1"));
     const againId = PRODUCTS.find(p => p.code === firstCode).id;
-    const learning = Object.values(st.srs).filter(s => s.reps > 0 && !s.wrong && (s.interval || 0) < 120).length;
-    return { againWrong: st.srs[againId].wrong, learning };
+    const learning = Object.values(st.plans.quick.srs).filter(s => s.reps > 0 && !s.wrong && !s.mastered).length;
+    return { againWrong: st.plans.quick.srs[againId].wrong, learning };
   }, firstCode);
   assert(studyState.againWrong === false, "翻卡“不认识”不应进错题本");
   assert(studyState.learning === 3, "学习阶段应让 3 个产品进入学习中: " + studyState.learning);
@@ -131,12 +142,8 @@ function assert(cond, msg) {
   const answerOne = async (correct) => {
     await page.waitForSelector(".quiz-card .opt", { timeout: 4000 });
     await page.evaluate((correct) => {
-      const id = document.querySelector(".quiz-card").dataset.id;
-      const p = PRODUCTS.find(x => x.id === id);
       const els = Array.from(document.querySelectorAll(".quiz-card .opt"));
-      const target = correct
-        ? els.find(e => e.textContent.trim() === p.type)
-        : els.find(e => e.textContent.trim() !== p.type);
+      const target = correct ? els[quiz.current.correctIndex] : els.find((e, i) => i !== quiz.current.correctIndex);
       target.click();
     }, correct);
   };
@@ -164,10 +171,10 @@ function assert(cond, msg) {
   const quizState = await page.evaluate((targetCode) => {
     const st = JSON.parse(localStorage.getItem("desaar_memory_v1"));
     const targetId = PRODUCTS.find(p => p.code === targetCode).id;
-    const learning = Object.values(st.srs).filter(s => s.reps > 0 && !s.wrong && (s.interval || 0) < 120).length;
+    const learning = Object.values(st.plans.quick.srs).filter(s => s.reps > 0 && !s.wrong && !s.mastered).length;
     return {
-      wrong: st.srs[targetId].wrong,
-      quizCorrect: st.srs[targetId].quizCorrect,
+      wrong: st.plans.quick.srs[targetId].wrong,
+      quizCorrect: st.plans.quick.srs[targetId].quizCorrect,
       learning
     };
   }, targetCode);
@@ -177,12 +184,12 @@ function assert(cond, msg) {
   // 累计答对 3 次 → 掌握并移出错题本
   const mastery = await page.evaluate((targetCode) => {
     const id = PRODUCTS.find(p => p.code === targetCode).id;
-    recordQuizResult(id, true);
-    recordQuizResult(id, true);
+    recordQuizResult(id, true, "quick");
+    recordQuizResult(id, true, "quick");
     const st = JSON.parse(localStorage.getItem("desaar_memory_v1"));
-    return { stage: st.srs[id].stage, wrong: st.srs[id].wrong, interval: st.srs[id].interval };
+    return { stage: st.plans.quick.srs[id].stage, wrong: st.plans.quick.srs[id].wrong, interval: st.plans.quick.srs[id].interval };
   }, targetCode);
-  assert(mastery.stage === "mastered" && mastery.wrong === false && mastery.interval >= 120,
+  assert(mastery.stage === "mastered" && mastery.wrong === false && mastery.interval >= 21,
     "累计答对 3 次应掌握: " + JSON.stringify(mastery));
   await page.evaluate(() => refreshHome());
   assert((await page.textContent("#stPending")) === "259", "待学习应随学习减少: " + (await page.textContent("#stPending")));
@@ -216,6 +223,34 @@ function assert(cond, msg) {
   const backState = await page.evaluate(() => [...document.querySelectorAll(".view")].filter(v => !v.classList.contains("hidden")).map(v => v.id).join(","));
   assert(backState === "view-library", "返回应回到产品库, 实际: " + backState);
   await page.click('.tabbar button[data-tab="home"]');
+
+  // 深度掌握：详情页一键加入产品池；每日从该池随机抽取，卡片使用深度信息，pH 仅对有数据的产品出题。
+  const deepProduct = await page.evaluate(() => {
+    const p = PRODUCTS.find(p => phOf(p) && deepDistractorPool("ph", phOf(p)).length >= 3) || PRODUCTS.find(p => p.features && p.features.length);
+    openDetail(p.id);
+    return p.code;
+  });
+  await page.waitForTimeout(150);
+  await page.locator("#detailBody button", { hasText: "加入深度掌握" }).click();
+  await page.click("#btnBack");
+  await page.waitForTimeout(150);
+  await page.click("#btnPlanDeep");
+  await page.waitForTimeout(100);
+  const deepPool = await page.evaluate(() => ({ selected:state.plans.deep.selectedIds.length, active:activePlan, fresh:newRemaining("deep") }));
+  assert(deepPool.selected === 1 && deepPool.active === "deep" && deepPool.fresh === 1, "详情页应能一键加入深度掌握产品池");
+  const phQuestion = await page.evaluate(() => {
+    const p = PRODUCTS.find(p => phOf(p) && deepDistractorPool("ph", phOf(p)).length >= 3);
+    if(!p) return null;
+    const types = deepQuestionTypes(p);
+    return buildDeepQuestion(p.id, types.indexOf("ph"));
+  });
+  assert(phQuestion && phQuestion.qtype === "ph" && phQuestion.prompt.includes("pH"), "深度掌握应为有 pH 指标的产品生成 pH 题");
+  await page.click("#btnStart");
+  await page.waitForTimeout(150);
+  assert(await page.evaluate(() => session.plan === "deep" && document.querySelectorAll(".rate-btn").length === 4), "深度掌握应使用独立进度并保留四级反馈");
+  await page.click("#btnQuitStudy");
+  await page.waitForTimeout(150);
+  await page.click("#btnPlanQuick");
 
   // 专项选产品：支持按与产品库相同的分类筛选，且可叠加搜索
   await page.click('.tabbar button[data-tab="projects"]');

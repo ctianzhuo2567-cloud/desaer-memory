@@ -85,6 +85,12 @@
   .hero .h-num.done{color:var(--ok)}
   .hero .big{font-size:18px;font-weight:700}
   .hero .desc{color:var(--sub);font-size:13px;margin:6px 0 16px}
+  .plan-tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+  .plan-tabs button{border:1px solid var(--line);background:var(--card);border-radius:12px;padding:10px;font:600 14px inherit;color:var(--sub)}
+  .plan-tabs button.active{background:var(--brand);border-color:var(--brand);color:#fff}
+  .plan-summary{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
+  .plan-summary .item{border:1px solid var(--line);border-radius:10px;padding:9px 10px;font-size:12px;color:var(--sub)}
+  .plan-summary .item b{display:block;font-size:14px;color:var(--ink);margin-bottom:2px}
   /* rows */
   .row{display:flex;align-items:center;gap:10px;padding:12px 4px;border-bottom:1px solid var(--line)}
   .row:last-child{border-bottom:0}
@@ -246,8 +252,14 @@
       <div class="card" id="dataWarning" style="display:none;border-color:var(--bad);color:var(--bad);font-weight:600">
         当前打开的是模板文件，没有产品数据。请打开「index.html」。
       </div>
+      <div class="sec-title">学习方案</div>
+      <div class="plan-tabs">
+        <button id="btnPlanQuick" type="button">快速认型</button>
+        <button id="btnPlanDeep" type="button">深度掌握</button>
+      </div>
+      <div class="plan-summary" id="planSummary"></div>
       <div class="stats">
-        <div class="stat"><div class="num" id="stPending">0</div><div class="lbl">待学习</div></div>
+        <div class="stat"><div class="num" id="stPending">0</div><div class="lbl">方案待学习</div></div>
         <div class="stat"><div class="num" id="stDue">0</div><div class="lbl">今日待复习</div></div>
         <div class="stat"><div class="num" id="stNew">0</div><div class="lbl">今日可学新卡</div></div>
         <div class="stat"><div class="num" id="stLearning">0</div><div class="lbl">学习中</div></div>
@@ -260,6 +272,7 @@
         <div class="big" id="heroTitle">开始今天的记忆</div>
         <div class="desc" id="heroDesc">先学习今天的产品，再进入答题</div>
         <button class="btn primary block" id="btnStart">开始今天的学习</button>
+        <button class="btn block" id="btnManageDeep" style="margin-top:8px;display:none">选择深度掌握产品</button>
       </div>
       <div class="card">
         <div class="row" style="margin:0" id="rowWrong" data-go="wrong">
@@ -333,8 +346,12 @@
       <div class="sec-title">学习设置</div>
       <div class="card">
         <div class="row" style="margin:0">
-          <div class="main"><div class="t">每日新产品数</div><div class="s">学习卡片与答题每天共用这一批产品</div></div>
-          <input id="dailyNew" type="number" min="1" max="200" style="width:70px;font-size:16px;padding:6px;border:1px solid var(--line);border-radius:8px;text-align:center">
+          <div class="main"><div class="t">快速认型 · 每日新产品</div><div class="s">轻量 15、标准 20、加速 30</div></div>
+          <select id="quickDailyNew" style="font-size:16px;padding:6px;border:1px solid var(--line);border-radius:8px"><option value="15">15</option><option value="20">20</option><option value="30">30</option></select>
+        </div>
+        <div class="row" style="margin:0">
+          <div class="main"><div class="t">深度掌握 · 每日新产品</div><div class="s">轻量 3、标准 5、加速 8</div></div>
+          <select id="deepDailyNew" style="font-size:16px;padding:6px;border:1px solid var(--line);border-radius:8px"><option value="3">3</option><option value="5">5</option><option value="8">8</option></select>
         </div>
       </div>
       <div class="sec-title">数据管理</div>
@@ -470,30 +487,80 @@ function norm(s){ return String(s||"").toLowerCase().replace(/\s+/g,""); }
 function dayKey(d){ d = d || new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
 function byId(id){ return PRODUCTS.find(p => p.id === id); }
 
-/* ---------- 状态 ---------- */
-let state = { srs:{}, notes:{}, meta:{ dailyNew:20 }, projects:[] };
+/* ---------- 状态：快速认型与深度掌握相互独立 ---------- */
+const PLAN_CONFIG = {
+  quick: { label:"快速认型", dailyNew:20, intervals:[0,1,3,7,21], pauseAt:40 },
+  deep: { label:"深度掌握", dailyNew:5, intervals:[1,3,7,21,60,120], pauseAt:25 }
+};
+function defaultPlan(key){ return { srs:{}, meta:{dailyNew:PLAN_CONFIG[key].dailyNew, batchDay:"", batch:[], batchSize:0, batchScheme:1}, selectedIds:key === "deep" ? [] : [] }; }
+function defaultState(){ return { plans:{quick:defaultPlan("quick"), deep:defaultPlan("deep")}, notes:{}, projects:[], projectScores:{}, ui:{activePlan:"quick"}, meta:{dataEpoch:3} }; }
+let state = defaultState();
+let activePlan = "quick";
+function legacyQuickLevel(s){
+  if(!s || !(s.reps > 0)) return -1;
+  if(s.stage === "mastered" || (s.interval || 0) >= 21) return PLAN_CONFIG.quick.intervals.length;
+  const n = s.interval || 0;
+  if(n >= 7) return 3;
+  if(n >= 3) return 2;
+  if(n >= 1) return 1;
+  return 0;
+}
+function migrateLegacySrs(map){
+  const out = {};
+  Object.keys(map || {}).forEach(id => {
+    const old = map[id] || {};
+    const s = Object.assign(blankSrs("quick"), old);
+    s.level = legacyQuickLevel(old);
+    s.mastered = s.level >= PLAN_CONFIG.quick.intervals.length;
+    s.interval = s.mastered ? 21 : (s.level >= 0 ? PLAN_CONFIG.quick.intervals[s.level] : 0);
+    s.stage = stageOf(s, "quick");
+    out[id] = s;
+  });
+  return out;
+}
+function normalizeState(raw){
+  const base = defaultState();
+  if(!raw || typeof raw !== "object") return base;
+  base.notes = Object.assign({}, raw.notes || {});
+  base.projects = Array.isArray(raw.projects) ? raw.projects : [];
+  base.projectScores = Object.assign({}, raw.projectScores || {});
+  base.meta = Object.assign({dataEpoch:3}, raw.meta || {});
+  base.ui = Object.assign({activePlan:"quick"}, raw.ui || {});
+  if(raw.plans && raw.plans.quick && raw.plans.deep){
+    ["quick","deep"].forEach(key => {
+      const source = raw.plans[key] || {};
+      base.plans[key].srs = Object.assign({}, source.srs || {});
+      base.plans[key].meta = Object.assign(base.plans[key].meta, source.meta || {});
+      base.plans[key].selectedIds = key === "deep" ? Array.from(new Set(source.selectedIds || [])).filter(byId) : [];
+    });
+  }else{
+    // v4 前的唯一学习记录全部归入快速认型；原每日 20 张设置一并保留。
+    base.plans.quick.srs = migrateLegacySrs(raw.srs || {});
+    base.plans.quick.meta = Object.assign(base.plans.quick.meta, raw.meta || {});
+    base.ui.activePlan = "quick";
+    base.meta.learningScheme = 4;
+  }
+  return base;
+}
 function loadState(){
-  try{
-    const raw = localStorage.getItem(LS_KEY);
-    if(raw){
-      const s = JSON.parse(raw);
-      state = Object.assign({ srs:{}, notes:{}, meta:{ dailyNew:20 }, projects:[], projectScores:{} }, s);
-    }
-  }catch(e){ state = { srs:{}, notes:{}, meta:{ dailyNew:20 }, projects:[], projectScores:{} }; }
+  try{ state = normalizeState(JSON.parse(localStorage.getItem(LS_KEY) || "null")); }
+  catch(e){ state = defaultState(); }
+  activePlan = PLAN_CONFIG[state.ui.activePlan] ? state.ui.activePlan : "quick";
 }
 function saveState(){
+  state.ui.activePlan = activePlan;
   try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }
   catch(e){ toast("保存失败：浏览器存储不可用"); }
 }
-function blankSrs(){
-  return { reps:0, lapses:0, ease:2.5, interval:0, due:0, wrong:false, lastWrong:0, introDay:"", stage:"new", quizCorrect:0 };
-}
-function srsOf(id){ return state.srs[id] || null; }
-function stageOf(s){
+function planOf(key){ return state.plans[key || activePlan]; }
+function planProducts(key){ return (key || activePlan) === "deep" ? PRODUCTS.filter(p => planOf("deep").selectedIds.includes(p.id)) : PRODUCTS; }
+function blankSrs(key){ return { reps:0, lapses:0, interval:0, due:0, wrong:false, lastWrong:0, introDay:"", stage:"new", quizCorrect:0, level:-1, mastered:false, plan:key || activePlan }; }
+function srsOf(id, key){ return planOf(key).srs[id] || null; }
+function stageOf(s, key){
   if(!s) return "new";
   if(s.wrong) return "wrong";
-  if(s.interval >= 120) return "mastered";
-  if(s.interval >= 21) return "reviewing";
+  if(s.mastered || s.level >= PLAN_CONFIG[key || activePlan].intervals.length) return "mastered";
+  if(s.reps > 0 && s.level >= 2) return "reviewing";
   if(s.reps > 0) return "learning";
   return "new";
 }
@@ -501,52 +568,58 @@ function stageOf(s){
 /* ---------- 学习会话 ---------- */
 let session = { queue:[], idx:0, mode:"", done:0, again:0 };
 
-function dueCount(){
+function dueCount(key){
+  key = key || activePlan;
   const now = Date.now();
-  return PRODUCTS.filter(p => {
-    const s = srsOf(p.id);
+  return planProducts(key).filter(p => {
+    const s = srsOf(p.id, key);
     return s && s.due && s.due <= now;
   }).length;
 }
-function newRemaining(){
-  return dailyBatch().filter(pid => {
-    const s = srsOf(pid);
+function newRemaining(key){
+  key = key || activePlan;
+  return dailyBatch(key).filter(pid => {
+    const s = srsOf(pid, key);
     return !s || (s.reps === 0 && !s.introDay);
   }).length;
 }
-function newPool(){
-  return PRODUCTS.filter(p => {
-    const s = srsOf(p.id);
+function newPool(key){
+  key = key || activePlan;
+  return planProducts(key).filter(p => {
+    const s = srsOf(p.id, key);
     return !s || (s.reps === 0 && !s.introDay);
   });
 }
-function wrongPool(){
-  return PRODUCTS.filter(p => { const s = srsOf(p.id); return s && s.wrong; })
-    .sort((a,b) => (srsOf(b.id).lastWrong||0) - (srsOf(a.id).lastWrong||0));
+function wrongPool(key){
+  key = key || activePlan;
+  return planProducts(key).filter(p => { const s = srsOf(p.id, key); return s && s.wrong; })
+    .sort((a,b) => (srsOf(b.id, key).lastWrong||0) - (srsOf(a.id, key).lastWrong||0));
 }
 
-function buildQueue(mode, id){
+function buildQueue(mode, id, key){
+  key = key || activePlan;
   const now = Date.now();
   if(mode === "one") return [id];
-  if(mode === "wrong") return wrongPool().map(p => p.id);
-  const due = PRODUCTS.filter(p => {
-    const s = srsOf(p.id); return s && s.due && s.due <= now;
-  }).sort((a,b) => srsOf(a.id).due - srsOf(b.id).due).map(p => p.id);
-  const fresh = dailyBatch().filter(pid => {
-    const s = srsOf(pid);
+  if(mode === "wrong") return wrongPool(key).map(p => p.id);
+  const due = planProducts(key).filter(p => {
+    const s = srsOf(p.id, key); return s && s.due && s.due <= now;
+  }).sort((a,b) => srsOf(a.id, key).due - srsOf(b.id, key).due).map(p => p.id);
+  const fresh = dailyBatch(key).filter(pid => {
+    const s = srsOf(pid, key);
     return !s || (s.reps === 0 && !s.introDay);
   });
   return due.concat(fresh);
 }
 
 const FLASHCARD_HTML = '<div class="flashcard" id="flashcard"><div class="fc-inner"><div class="fc-face fc-front"><div class="code" id="fcCode"></div><div class="name" id="fcName"></div><div class="bubbles" id="fcBubbles"></div><div class="hint">点击卡片查看答案</div></div><div class="fc-face fc-back" id="fcBack"></div></div></div>';
-function openStudy(mode, id){
-  const q = buildQueue(mode, id);
+function openStudy(mode, id, key){
+  key = key || activePlan;
+  const q = buildQueue(mode, id, key);
   if(!q.length){
     toast(mode === "one" ? "该产品已在学习中" : "今日没有要学习的内容");
     return;
   }
-  session = { queue: mode === "one" ? q : shuffleNoAdjacent(q.slice()), idx:0, mode:mode, done:0, again:0, uniqueTotal:q.length };
+  session = { queue: mode === "one" ? q : shuffleNoAdjacent(q.slice()), idx:0, mode:mode, plan:key, done:0, again:0, uniqueTotal:q.length };
   $("#studyOverlay").classList.remove("hidden");
   $("#ovBody").innerHTML = FLASHCARD_HTML;
   document.body.style.overflow = "hidden";
@@ -599,21 +672,26 @@ function seededShuffle(arr, seed){
   }
   return a;
 }
-function dailyBatch(){
+function dailyBatch(key){
+  key = key || activePlan;
+  const plan = planOf(key);
+  const cfg = PLAN_CONFIG[key];
   const today = dayKey();
-  const limit = Math.max(1, state.meta.dailyNew || 20);
-  if(state.meta.batchDay !== today || state.meta.batchSize !== limit || state.meta.batchScheme !== 2 || !state.meta.batch || !state.meta.batch.length){
-    // 每个用户生成一个随机种子：同一天内自己保持稳定，但不同用户、不同日期抽到的 20 个产品不同
-    if(!state.meta.userSeed){
-      state.meta.userSeed = Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10);
+  const meta = plan.meta;
+  const limit = Math.max(1, meta.dailyNew || cfg.dailyNew);
+  if(meta.batchDay !== today || meta.batchSize !== limit || meta.batchScheme !== 4 || !Array.isArray(meta.batch)){
+    if(!meta.userSeed){
+      meta.userSeed = Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10);
     }
-    state.meta.batch = seededShuffle(newPool().map(p => p.id), hashString(state.meta.userSeed + ":" + today)).slice(0, limit);
-    state.meta.batchDay = today;
-    state.meta.batchSize = limit;
-    state.meta.batchScheme = 2;
+    const paused = dueCount(key) >= cfg.pauseAt;
+    meta.batch = paused ? [] : seededShuffle(newPool(key).map(p => p.id), hashString(meta.userSeed + ":" + today)).slice(0, limit);
+    meta.batchDay = today;
+    meta.batchSize = limit;
+    meta.batchScheme = 4;
+    meta.pausedToday = paused;
     saveState();
   }
-  return state.meta.batch.slice();
+  return meta.batch.slice();
 }
 function closeStudy(){
   $("#studyOverlay").classList.add("hidden");
@@ -707,6 +785,7 @@ function fillCardBack(p){
   const lbl = (t) => el("div", {class:"lbl"}, t);
   back.appendChild(lbl("产品类型"));
   back.appendChild(el("div", {class:"type"}, p.type));
+  if(session.plan === "quick") return;
   if(p.features && p.features.length){
     back.appendChild(lbl("特点 / 性能"));
     const ul = el("ul");
@@ -733,6 +812,14 @@ function fillCardBack(p){
     back.appendChild(lbl("竞品"));
     back.appendChild(el("div", {class:"competitors"}, note.competitors));
   }
+  if(note && note.memo){
+    back.appendChild(lbl("备注"));
+    back.appendChild(el("div", {class:"comp-box"}, note.memo));
+  }
+  if(p.application){
+    back.appendChild(lbl("应用与使用方法"));
+    back.appendChild(el("div", {class:"comp-box"}, p.application));
+  }
 }
 
 function applyRate(q){
@@ -748,30 +835,37 @@ function applyRate(q){
     if(session.idx >= session.queue.length) renderDone(); else renderCard();
     return;
   }
-  let s = srsOf(p.id) || blankSrs();
+  const key = session.plan || activePlan;
+  const cfg = PLAN_CONFIG[key];
+  const plan = planOf(key);
+  let s = srsOf(p.id, key) || blankSrs(key);
   s.reps += 1;
   if(!s.introDay) s.introDay = dayKey();
   const now = Date.now();
-  const prevInterval = s.interval;
   if(q === "again"){
     s.lapses += 1;
-    s.interval = 0; s.due = 0;
+    s.level = Math.max(-1, (s.level == null ? -1 : s.level) - 1);
+    s.interval = 0; s.due = Date.now() + DAY;
     session.again += 1;
     session.queue.push(p.id);
   }else if(q === "hard"){
-    s.interval = 0; s.due = 0;
+    s.interval = 0; s.due = Date.now() + (key === "deep" ? 2 * 60 * 60 * 1000 : 0);
     session.queue.push(p.id);
   }else if(q === "good"){
-    s.interval = prevInterval > 0 ? 7 : 1;
-    s.due = now + s.interval * DAY;
+    s.level = Math.min(cfg.intervals.length, (s.level == null ? -1 : s.level) + 1);
+    s.mastered = s.level >= cfg.intervals.length;
+    s.interval = s.mastered ? cfg.intervals[cfg.intervals.length - 1] : cfg.intervals[s.level];
+    s.due = s.mastered ? 0 : now + (s.interval ? s.interval * DAY : 3 * 60 * 60 * 1000);
     session.done += 1;
   }else{
-    s.interval = 7;
-    s.due = now + s.interval * DAY;
+    s.level = Math.min(cfg.intervals.length, (s.level == null ? -1 : s.level) + 2);
+    s.mastered = s.level >= cfg.intervals.length;
+    s.interval = s.mastered ? cfg.intervals[cfg.intervals.length - 1] : cfg.intervals[s.level];
+    s.due = s.mastered ? 0 : now + (s.interval ? s.interval * DAY : 3 * 60 * 60 * 1000);
     session.done += 1;
   }
-  s.stage = stageOf(s);
-  state.srs[p.id] = s;
+  s.stage = stageOf(s, key);
+  plan.srs[p.id] = s;
   saveState();
   session.idx += 1;
   if(session.idx >= session.queue.length){
@@ -806,38 +900,42 @@ function startQuizPhase(){
   $("#studyOverlay").classList.add("hidden");
   navTop = { overlay: "quiz" };
   history.replaceState(navTop, "");
-  openQuiz(false);
+  openQuiz(false, session.plan || activePlan);
 }
 
 /* ---------- 答题模式 ---------- */
 let quiz = null;
 const QUIZ_DELAY = 900;
 
-function recordQuizResult(id, correct){
-  const s = srsOf(id);
+function recordQuizResult(id, correct, key){
+  key = key || activePlan;
+  const plan = planOf(key);
+  const s = srsOf(id, key);
   if(correct){
     if(!s || !s.wrong) return { mastered:false };
     s.quizCorrect = (s.quizCorrect || 0) + 1;
     if(s.quizCorrect >= 3){
       s.wrong = false;
-      s.interval = Math.max(s.interval || 0, 120);
-      s.due = Date.now() + 120 * DAY;
+      s.mastered = true;
+      s.level = PLAN_CONFIG[key].intervals.length;
+      s.interval = PLAN_CONFIG[key].intervals[PLAN_CONFIG[key].intervals.length - 1];
+      s.due = 0;
       s.reps = Math.max(s.reps || 0, 3);
-      s.stage = stageOf(s);
-      state.srs[id] = s;
+      s.stage = stageOf(s, key);
+      plan.srs[id] = s;
       saveState();
       return { mastered:true };
     }
-    state.srs[id] = s;
+    plan.srs[id] = s;
     saveState();
     return { mastered:false };
   }
-  const t = s || blankSrs();
+  const t = s || blankSrs(key);
   t.wrong = true;
   t.lastWrong = Date.now();
   t.quizCorrect = 0;
-  t.stage = stageOf(t);
-  state.srs[id] = t;
+  t.stage = stageOf(t, key);
+  plan.srs[id] = t;
   saveState();
   return { mastered:false };
 }
@@ -848,19 +946,20 @@ function quizTypePool(){
   return pool;
 }
 
-function openQuiz(pushHistory){
+function openQuiz(pushHistory, key){
+  key = key || activePlan;
   const today = dayKey();
-  const batch = dailyBatch();
-  const carry = PRODUCTS.filter(p => {
-    const s = srsOf(p.id);
+  const batch = dailyBatch(key);
+  const carry = planProducts(key).filter(p => {
+    const s = srsOf(p.id, key);
     return s && s.wrong && s.lastWrong && dayKey(new Date(s.lastWrong)) !== today;
   }).filter(p => !batch.includes(p.id))
-    .sort((a, b) => srsOf(a.id).lastWrong - srsOf(b.id).lastWrong)
+    .sort((a, b) => srsOf(a.id, key).lastWrong - srsOf(b.id, key).lastWrong)
     .map(p => p.id);
   const ids = carry.concat(shuffle(batch.slice()));
   if(!ids.length){ toast("今天没有可答题的产品"); return; }
   quiz = {
-    round: 1, queue: ids.map(buildTypeQuestion), idx: 0, wrong: [], timer: null, current: null, projectId: null,
+    round: 1, queue: ids.map((id, i) => key === "quick" ? buildQuickQuestion(id, i) : buildDeepQuestion(id, i)), idx: 0, wrong: [], timer: null, current: null, projectId: null, plan:key,
     stats: { r1c: 0, r1w: 0, r2c: 0, r2w: 0 }
   };
   $("#quizOverlay").classList.remove("hidden");
@@ -880,6 +979,14 @@ function buildTypeQuestion(id, seed){
   const options = seed == null ? shuffle([p.type].concat(shuffled.slice(0, 3))) : seededShuffle([p.type].concat(shuffled.slice(0, 3)), seed + 1);
   return { id: p.id, qtype: "type", prompt: "这个产品属于哪种类型？", options: options, correctIndex: options.indexOf(p.type) };
 }
+function buildCategoryQuestion(id, seed){
+  const p = byId(id);
+  const pool = CATEGORY_ORDER.filter(c => PRODUCTS.some(x => x.category === c) && c !== p.category);
+  const opts = seededShuffle(pool, seed + 41).slice(0, 3);
+  const options = seededShuffle([p.category].concat(opts), seed + 43);
+  return { id:p.id, qtype:"category", prompt:"「" + p.code + "」属于哪个工段 / 分类？", options:options, correctIndex:options.indexOf(p.category) };
+}
+function buildQuickQuestion(id, seed){ return seed % 2 ? buildCategoryQuestion(id, seed) : buildTypeQuestion(id, seed); }
 
 /* 专项答题：选择题按 类型/主要成分/外观形态/固含量 轮换，另生成约一半产品数的类型判断题；按天固定、隔天不重复 */
 function solidOf(p){
@@ -889,6 +996,15 @@ function solidOf(p){
   }
   return null;
 }
+function phOf(p){
+  if(p.specs && p.specs.length){
+    const row = p.specs.find(sp => /(^|\s)p\.?h\b|酸碱度/i.test(sp.key || ""));
+    if(row && row.value) return String(row.value).trim();
+  }
+  return null;
+}
+function featureOf(p){ return (p.features || []).map(v => String(v).trim()).filter(Boolean); }
+function applicationOf(p){ return p.application ? [String(p.application).trim()] : []; }
 function appearanceOf(p){
   if(p.specs && p.specs.length){
     const row = p.specs.find(sp => /外观/.test(sp.key || ""));
@@ -933,7 +1049,45 @@ function ownValues(p, kind){
   if(kind === "component") return (p.components || []).map(v => String(v).trim());
   if(kind === "appearance"){ const s = appearanceOf(p); return s ? [s] : []; }
   if(kind === "solid"){ const s = solidOf(p); return s ? [s] : []; }
+  if(kind === "ph"){ const s = phOf(p); return s ? [s] : []; }
+  if(kind === "feature") return featureOf(p);
+  if(kind === "application") return applicationOf(p);
   return [];
+}
+function deepQuestionTypes(p){
+  const ts = ["type"];
+  if(p.components && p.components.length) ts.push("component");
+  if(appearanceOf(p)) ts.push("appearance");
+  if(solidOf(p)) ts.push("solid");
+  if(phOf(p)) ts.push("ph");
+  if(featureOf(p).length) ts.push("feature");
+  if(applicationOf(p).length) ts.push("application");
+  return ts;
+}
+function deepDistractorPool(kind, correct){
+  const set = [];
+  PRODUCTS.forEach(p => {
+    let vals = [];
+    if(kind === "feature") vals = featureOf(p);
+    else if(kind === "application") vals = applicationOf(p);
+    else if(kind === "ph"){ const v = phOf(p); if(v) vals = [v]; }
+    vals.forEach(v => { if(v && v !== correct && !set.includes(v)) set.push(v); });
+  });
+  return set;
+}
+function buildDeepQuestion(id, seed){
+  const p = byId(id);
+  const types = deepQuestionTypes(p);
+  const kind = types[seed % types.length];
+  if(kind === "type") return buildTypeQuestion(id, seed);
+  let correct = null, pool = [], prompt = "";
+  if(kind === "component" || kind === "appearance" || kind === "solid") return buildFieldQuestion(p, kind, seed + 17) || buildTypeQuestion(id, seed);
+  if(kind === "ph") { correct = phOf(p); pool = deepDistractorPool("ph", correct); prompt = "「" + p.code + "」的 pH 指标是多少？"; }
+  if(kind === "feature") { const a = featureOf(p); correct = a[seed % a.length]; pool = deepDistractorPool("feature", correct).filter(v => !a.includes(v)); prompt = "以下哪项是「" + p.code + "」的特点 / 性能？"; }
+  if(kind === "application") { correct = applicationOf(p)[0]; pool = deepDistractorPool("application", correct); prompt = "以下哪项是「" + p.code + "」的应用与使用方法？"; }
+  if(!correct || pool.length < 3) return buildTypeQuestion(id, seed);
+  const options = seededShuffle([correct].concat(seededShuffle(pool, seed + 19).slice(0, 3)), seed + 23);
+  return {id:p.id, qtype:kind, prompt:prompt, options:options, correctIndex:options.indexOf(correct)};
 }
 function buildFieldQuestion(p, qtype, seed){
   if(qtype === "type") return buildTypeQuestion(p.id, seed);
@@ -1052,7 +1206,7 @@ function renderQuizQuestion(){
   card.appendChild(el("div", {class: "q-round"},
     quiz.projectId
       ? (q.qtype === "tf" ? "专项答题 · 判断题" : "专项答题 · 选择题")
-      : (quiz.round === 1 ? "第一轮 · 选择正确的产品类型" : "重考 · 答错的题目再考一次")));
+      : (quiz.round === 1 ? PLAN_CONFIG[quiz.plan || activePlan].label + " · " + (quiz.plan === "quick" ? "分类与类型" : "深度知识") : "重考 · 答错的题目再考一次")));
   card.appendChild(el("div", {class: "q-code", id: "quizCode"}, p.code));
   card.appendChild(el("div", {class: "q-name"}, p.name));
   card.appendChild(el("div", {class: "q-prompt"}, q.prompt));
@@ -1080,7 +1234,7 @@ function answerQuiz(i){
   const right = i === correctIndex;
   if(right){
     let mastered = false;
-    if(!quiz.projectId){ const res = recordQuizResult(id, true); mastered = res.mastered; }
+    if(!quiz.projectId){ const res = recordQuizResult(id, true, quiz.plan); mastered = res.mastered; }
     fb.textContent = mastered ? "答对了，已掌握 ✓" : "答对了 ✓";
     fb.className = "q-feedback ok";
     if(quiz.round === 1) quiz.stats.r1c += 1; else quiz.stats.r2c += 1;
@@ -1089,7 +1243,7 @@ function answerQuiz(i){
     fb.className = "q-feedback bad";
     opts[i].classList.add("wrong");
     opts[i].classList.remove("dim");
-    if(!quiz.projectId) recordQuizResult(id, false);
+    if(!quiz.projectId) recordQuizResult(id, false, quiz.plan);
     if(quiz.projectId){
       const p = byId(id);
       quiz.errors.push({
@@ -1388,11 +1542,11 @@ let pickMode = { mode:"new" };
 let pickSelected = [];
 function openPicker(mode, projId){
   const pr = mode === "manage" ? projById(projId) : null;
-  pickMode = pr ? { mode:"manage", projId: pr.id } : { mode:"new" };
-  $("#pickTitle").textContent = pickMode.mode === "new" ? "新建专项项目" : "管理产品 · " + pr.name;
+  pickMode = mode === "deep" ? {mode:"deep"} : (pr ? { mode:"manage", projId: pr.id } : { mode:"new" });
+  $("#pickTitle").textContent = pickMode.mode === "deep" ? "深度掌握产品池" : (pickMode.mode === "new" ? "新建专项项目" : "管理产品 · " + pr.name);
   $("#pickName").style.display = pickMode.mode === "new" ? "" : "none";
-  $("#pickName").value = pickMode.mode === "new" ? "" : pr.name;
-  pickSelected = pr ? pr.productIds.slice() : [];
+  $("#pickName").value = pickMode.mode === "new" ? "" : (pr ? pr.name : "");
+  pickSelected = pickMode.mode === "deep" ? planOf("deep").selectedIds.slice() : (pr ? pr.productIds.slice() : []);
   $("#pickInput").value = "";
   $("#pickCatChips").dataset.cat = "全部";
   renderPickCategories();
@@ -1463,6 +1617,15 @@ function refreshPickList(){
   $("#btnPickConfirm").textContent = "确认（" + pickSelected.length + "）";
 }
 function confirmPick(){
+  if(pickMode.mode === "deep"){
+    planOf("deep").selectedIds = pickSelected.slice();
+    planOf("deep").meta.batchDay = "";
+    saveState();
+    closePicker();
+    refreshAll();
+    toast("已更新深度掌握产品池");
+    return;
+  }
   if(pickMode.mode === "new"){
     const name = $("#pickName").value.trim();
     if(!name){ toast("请先填写项目名称"); return; }
@@ -1572,26 +1735,45 @@ window.addEventListener("popstate", function(e){
   }
 });
 
-function refreshHome(){
-  const now = Date.now();
+function planStats(key){
   let learning = 0, mastered = 0, wrong = 0;
-  PRODUCTS.forEach(p => {
-    const st = stageOf(srsOf(p.id));
+  planProducts(key).forEach(p => {
+    const st = stageOf(srsOf(p.id, key), key);
     if(st === "learning" || st === "reviewing") learning++;
     if(st === "mastered") mastered++;
     if(st === "wrong") wrong++;
   });
-  $("#stPending").textContent = newPool().length;
-  $("#stDue").textContent = dueCount();
-  $("#stNew").textContent = newRemaining();
-  $("#stLearning").textContent = learning;
-  $("#stMastered").textContent = mastered;
-  $("#stWrong").textContent = wrong;
-  $("#wrongDesc").textContent = wrong ? wrong + " 张卡片待复习" : "答错的卡片会进入这里";
-  const due = dueCount();
-  const fresh = newRemaining();
+  return {pending:newPool(key).length, due:dueCount(key), fresh:newRemaining(key), learning:learning, mastered:mastered, wrong:wrong, paused:!!planOf(key).meta.pausedToday};
+}
+function refreshHome(){
+  const stats = planStats(activePlan);
+  const quick = planStats("quick"), deep = planStats("deep");
+  $("#btnPlanQuick").classList.toggle("active", activePlan === "quick");
+  $("#btnPlanDeep").classList.toggle("active", activePlan === "deep");
+  $("#planSummary").innerHTML = "<div class='item'><b>快速认型</b>到期 " + quick.due + " · 新卡 " + quick.fresh + "<br>学习中 " + quick.learning + " · 已认型 " + quick.mastered + " · 错题 " + quick.wrong + "</div><div class='item'><b>深度掌握</b>到期 " + deep.due + " · 新卡 " + deep.fresh + "<br>学习中 " + deep.learning + " · 已掌握 " + deep.mastered + " · 错题 " + deep.wrong + "</div>";
+  $("#stPending").textContent = stats.pending;
+  $("#stDue").textContent = stats.due;
+  $("#stNew").textContent = stats.fresh;
+  $("#stLearning").textContent = stats.learning;
+  $("#stMastered").textContent = stats.mastered;
+  $("#stWrong").textContent = stats.wrong;
+  $("#wrongDesc").textContent = stats.wrong ? stats.wrong + " 张" + PLAN_CONFIG[activePlan].label + "错题待复习" : "答错的卡片会进入这里";
+  $("#btnManageDeep").style.display = activePlan === "deep" ? "" : "none";
+  $("#btnStart").textContent = "开始今天的" + PLAN_CONFIG[activePlan].label;
+  const due = stats.due;
+  const fresh = stats.fresh;
   $("#heroNum").classList.remove("done");
-  if(due > 0){
+  if(activePlan === "deep" && !planOf("deep").selectedIds.length){
+    $("#heroLbl").textContent = "深度产品池为空";
+    $("#heroNum").textContent = "0";
+    $("#heroTitle").textContent = "先选择要深度掌握的产品";
+    $("#heroDesc").textContent = "可从产品详情一键加入，也可点下方按钮批量选择";
+  }else if(stats.paused){
+    $("#heroLbl").textContent = "复习负荷较高";
+    $("#heroNum").textContent = due;
+    $("#heroTitle").textContent = "今天暂停新增产品";
+    $("#heroDesc").textContent = "先完成到期复习，再恢复新增";
+  }else if(due > 0){
     $("#heroLbl").textContent = "今日待复习";
     $("#heroNum").textContent = due;
     $("#heroTitle").textContent = "先复习到期卡片";
@@ -1707,14 +1889,14 @@ function refreshDetail(){
   if(!p) return;
   const body = $("#detailBody");
   body.innerHTML = "";
-  const st = stageOf(srsOf(p.id));
+  const st = stageOf(srsOf(p.id, activePlan), activePlan);
   const head = el("div", {class:"d-head"});
   const tags = el("div", {class:"d-tags"});
   tags.appendChild(el("span", {class:"chip"}, p.category));
   tags.appendChild(document.createTextNode(" "));
   tags.appendChild(el("span", {class:"chip accent"}, p.type));
   tags.appendChild(document.createTextNode(" "));
-  const statusMap = {new:["未学",""], learning:["学习中","ok"], reviewing:["复习中","ok"], mastered:["已掌握","ok"], wrong:["错题","bad"]};
+  const statusMap = {new:["未学",""], learning:["学习中","ok"], reviewing:["复习中","ok"], mastered:[activePlan === "quick" ? "已认型" : "已掌握","ok"], wrong:["错题","bad"]};
   const [stTxt, stCls] = statusMap[st] || statusMap.new;
   const stChip = el("span", {class:"chip status " + (stCls||"")}, stTxt);
   tags.appendChild(stChip);
@@ -1725,23 +1907,37 @@ function refreshDetail(){
   body.appendChild(head);
 
   const actions = el("div", {class:"card", style:"display:flex;gap:8px;flex-wrap:wrap"});
-  const bStudy = el("button", {class:"btn primary sm"}, "立即学习");
-  bStudy.addEventListener("click", () => openStudy("one", p.id));
-  const bMaster = el("button", {class:"btn sm"}, st === "mastered" ? "移出已掌握" : "标记已掌握");
+  const bStudy = el("button", {class:"btn primary sm"}, "立即" + PLAN_CONFIG[activePlan].label);
+  bStudy.addEventListener("click", () => {
+    if(activePlan === "deep" && !planOf("deep").selectedIds.includes(p.id)) planOf("deep").selectedIds.push(p.id);
+    saveState(); openStudy("one", p.id, activePlan);
+  });
+  const bMaster = el("button", {class:"btn sm"}, st === "mastered" ? "移出已完成" : "标记已完成");
   bMaster.addEventListener("click", () => {
-    const s = state.srs[p.id];
-    if(s && s.stage === "mastered"){
-      delete state.srs[p.id];
+    const plan = planOf(activePlan);
+    const s = plan.srs[p.id];
+    if(s && stageOf(s, activePlan) === "mastered"){
+      delete plan.srs[p.id];
     }else{
-      const ns = blankSrs();
-      ns.reps = Math.max(8, (s?s.reps:0)); ns.interval = 120; ns.due = Date.now() + 120*DAY;
-      ns.wrong = false; ns.stage = "mastered";
-      state.srs[p.id] = ns;
+      const ns = blankSrs(activePlan);
+      ns.reps = Math.max(8, (s?s.reps:0)); ns.level = PLAN_CONFIG[activePlan].intervals.length; ns.interval = PLAN_CONFIG[activePlan].intervals[PLAN_CONFIG[activePlan].intervals.length - 1];
+      ns.mastered = true; ns.wrong = false; ns.stage = "mastered";
+      plan.srs[p.id] = ns;
     }
+    saveState(); refreshDetail(); refreshHome();
+  });
+  const inDeep = planOf("deep").selectedIds.includes(p.id);
+  const bDeep = el("button", {class:"btn sm"}, inDeep ? "移出深度掌握" : "加入深度掌握");
+  bDeep.addEventListener("click", () => {
+    const ids = planOf("deep").selectedIds;
+    if(ids.includes(p.id)) planOf("deep").selectedIds = ids.filter(id => id !== p.id);
+    else ids.push(p.id);
+    planOf("deep").meta.batchDay = "";
     saveState(); refreshDetail(); refreshHome();
   });
   actions.appendChild(bStudy);
   actions.appendChild(bMaster);
+  actions.appendChild(bDeep);
   body.appendChild(actions);
 
   // 竞品 + 备注（本机可编辑）
@@ -1856,7 +2052,10 @@ document.addEventListener("click", e => {
   const go = e.target.closest("[data-go]");
   if(go) show(go.dataset.go);
 });
-$("#btnStart").addEventListener("click", () => openStudy("combined"));
+$("#btnStart").addEventListener("click", () => openStudy("combined", null, activePlan));
+$("#btnPlanQuick").addEventListener("click", () => { activePlan = "quick"; saveState(); refreshHome(); });
+$("#btnPlanDeep").addEventListener("click", () => { activePlan = "deep"; saveState(); refreshHome(); });
+$("#btnManageDeep").addEventListener("click", () => openPicker("deep"));
 $("#btnQuitStudy").addEventListener("click", closeStudy);
 $("#btnStudyDetail").addEventListener("click", openStudyDetail);
 $("#btnProjectStudyPrev").addEventListener("click", prevProjectStudyCard);
@@ -1879,11 +2078,17 @@ $("#btnPickConfirm").addEventListener("click", confirmPick);
 $("#pickInput").addEventListener("input", refreshPickList);
 $("#searchInput").addEventListener("input", debounce(refreshLibrary, 120));
 $("#searchClear").addEventListener("click", () => { $("#searchInput").value=""; refreshLibrary(); $("#searchInput").focus(); });
-$("#dailyNew").addEventListener("change", e => {
-  const v = Math.min(200, Math.max(1, parseInt(e.target.value,10) || 20));
-  state.meta.dailyNew = v;
-  state.meta.batchDay = "";
-  e.target.value = v; saveState(); toast("已保存，每日新卡与答题各 " + v + " 个");
+$("#quickDailyNew").addEventListener("change", e => {
+  const v = parseInt(e.target.value, 10) || 20;
+  planOf("quick").meta.dailyNew = v;
+  planOf("quick").meta.batchDay = "";
+  saveState(); refreshAll(); toast("快速认型每日新增已设为 " + v + " 个");
+});
+$("#deepDailyNew").addEventListener("change", e => {
+  const v = parseInt(e.target.value, 10) || 5;
+  planOf("deep").meta.dailyNew = v;
+  planOf("deep").meta.batchDay = "";
+  saveState(); refreshAll(); toast("深度掌握每日新增已设为 " + v + " 个");
 });
 $("#btnExport").addEventListener("click", () => {
   const text = JSON.stringify(state,null,2);
@@ -1904,11 +2109,8 @@ function acceptImportText(text){
   try{
     const s = JSON.parse(text);
     if(!s || typeof s !== "object") throw new Error("bad");
-    state.srs = Object.assign({}, s.srs || {});
-    state.notes = Object.assign({}, s.notes || {});
-    state.meta = Object.assign({dailyNew:20}, s.meta || {});
-    state.projects = Array.isArray(s.projects) ? s.projects : [];
-    state.projectScores = Object.assign({}, s.projectScores || {});
+    state = normalizeState(s);
+    activePlan = PLAN_CONFIG[state.ui.activePlan] ? state.ui.activePlan : "quick";
     saveState(); refreshAll(); toast("导入成功");
   }catch(err){ toast("导入失败：文件格式不正确"); }
 }
@@ -1924,8 +2126,13 @@ $("#importFile").addEventListener("change", e => {
 });
 $("#btnReset").addEventListener("click", () => {
   if(confirm("确定要清空所有学习进度、错题与备注吗？此操作不可恢复。")){
+    const projects = state.projects || [];
+    const projectScores = state.projectScores || {};
     localStorage.removeItem(LS_KEY);
-    state = { srs:{}, notes:{}, meta:{ dailyNew:20 }, projects:(state.projects || []).slice(), projectScores:{} };
+    state = defaultState();
+    state.projects = projects;
+    state.projectScores = projectScores;
+    activePlan = "quick";
     refreshAll(); toast("已重置");
   }
 });
@@ -1935,17 +2142,11 @@ function debounce(fn, ms){
 
 /* ---------- 启动 ---------- */
 loadState();
-// 一次性迁移：产品 id 改为稳定编码时清空学习状态（保留竞品、备注等笔记）。
-// 以后只有产品 id 体系发生变化时才允许提高此值；仅更新界面/文案不要改，否则会清空进度。
-if(state.meta.dataEpoch !== 3){
-  state.srs = {};
-  state.meta.batchDay = "";
-  delete state.meta.batch;
-  state.meta.dataEpoch = 3;
-  saveState();
-}
+// 仅迁移状态结构，绝不因界面更新清空已学习进度。
+if(state.meta.learningScheme !== 4){ state.meta.learningScheme = 4; saveState(); }
 $("#appVersion").textContent = APP_VERSION + " · " + BUILD_DATE;
-$("#dailyNew").value = state.meta.dailyNew || 20;
+$("#quickDailyNew").value = String(planOf("quick").meta.dailyNew || 20);
+$("#deepDailyNew").value = String(planOf("deep").meta.dailyNew || 5);
 $("#appSub").textContent = "百品记 · " + PRODUCTS.length + " 个产品";
 if(!PRODUCTS.length){
   $("#dataWarning").style.display = "";
