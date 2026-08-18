@@ -398,11 +398,15 @@
     </div>
     <div class="ov-actions">
       <button class="btn sm study-detail" id="btnStudyDetail">查看产品详情 / 补充竞品与备注</button>
-      <div class="rate-row">
+      <div class="rate-row" id="studyRateActions">
         <button class="rate-btn again" data-rate="again"><b>不认识</b></button>
         <button class="rate-btn hard" data-rate="hard"><b>模糊</b></button>
         <button class="rate-btn good" data-rate="good"><b>认识</b></button>
         <button class="rate-btn easy" data-rate="easy"><b>掌握</b></button>
+      </div>
+      <div class="rate-row hidden" id="projectStudyActions">
+        <button class="btn block" id="btnProjectStudyPrev">上一个</button>
+        <button class="btn primary block" id="btnProjectStudyNext">下一个</button>
       </div>
     </div>
   </div>
@@ -648,6 +652,7 @@ function currentProduct(){ return byId(session.queue[session.idx]); }
 function renderCard(){
   const p = currentProduct();
   const s = srsOf(p.id);
+  syncStudyActions();
   $("#progCount").textContent = "剩 " + (session.queue.length - session.idx) + " 张";
   $("#progBar").style.width = Math.min(100, session.done / Math.max(1, session.uniqueTotal) * 100) + "%";
   $("#fcCode").textContent = p.code;
@@ -669,6 +674,32 @@ function renderCard(){
   // 答案面留空：翻到详情页时才填充，避免切卡动画期间提前露出下一张答案
   $("#fcBack").innerHTML = "";
   $("#flashcard").classList.remove("flipped");
+}
+function syncStudyActions(){
+  const isProject = session.mode === "project";
+  $("#studyRateActions").classList.toggle("hidden", isProject);
+  $("#projectStudyActions").classList.toggle("hidden", !isProject);
+  if(!isProject) return;
+  $("#btnProjectStudyPrev").disabled = session.idx === 0;
+  $("#btnProjectStudyNext").textContent = session.idx === session.queue.length - 1 ? "完成今日学习" : "下一个";
+}
+function prevProjectStudyCard(){
+  if(session.mode !== "project" || session.idx === 0) return;
+  session.idx -= 1;
+  session.done = session.idx;
+  renderCard();
+}
+function nextProjectStudyCard(){
+  if(session.mode !== "project") return;
+  if(session.idx === session.queue.length - 1){
+    session.done = session.uniqueTotal;
+    closeStudy();
+    toast("今日专项学习已完成");
+    return;
+  }
+  session.idx += 1;
+  session.done = session.idx;
+  renderCard();
 }
 function fillCardBack(p){
   const back = $("#fcBack");
@@ -1349,6 +1380,8 @@ function openProjectStudy(projId){
   const q = shuffle(pr.productIds.slice());
   session = { queue: q, idx:0, mode:"project", projectId: projId, done:0, again:0, uniqueTotal:q.length };
   $("#studyOverlay").classList.remove("hidden");
+  // 学习浮层会在每日学习结束后保留完成页；专项学习必须重建卡片，避免沿用“开始答题”按钮。
+  $("#ovBody").innerHTML = FLASHCARD_HTML;
   document.body.style.overflow = "hidden";
   navTop = { overlay: "study" };
   navDepth++;
@@ -1832,6 +1865,8 @@ document.addEventListener("click", e => {
 $("#btnStart").addEventListener("click", () => openStudy("combined"));
 $("#btnQuitStudy").addEventListener("click", closeStudy);
 $("#btnStudyDetail").addEventListener("click", openStudyDetail);
+$("#btnProjectStudyPrev").addEventListener("click", prevProjectStudyCard);
+$("#btnProjectStudyNext").addEventListener("click", nextProjectStudyCard);
 $("#btnQuitQuiz").addEventListener("click", closeQuiz);
 $("#studyOverlay").addEventListener("click", e => {
   const fc = e.target.closest("#flashcard");

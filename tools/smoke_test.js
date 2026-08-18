@@ -240,9 +240,36 @@ function assert(cond, msg) {
     state.projectScores = {};
     saveState();
     openProject(project.id);
-    openProjectQuiz(project.id);
   });
   await page.waitForTimeout(200);
+
+  // 专项学习必须覆盖每日学习遗留的完成页，不能露出“开始答题”并跳到每日答题。
+  await page.evaluate(() => {
+    document.querySelector("#ovBody").innerHTML = '<div class="done-box"><button id="btnToQuiz">开始答题</button></div>';
+  });
+  await page.locator("#projectBody button", { hasText: "开始今日专项学习" }).click();
+  await page.waitForTimeout(150);
+  const projectStudy = await page.evaluate(() => ({
+    mode: session.mode,
+    hasCard: !!document.querySelector("#ovBody #flashcard"),
+    hasDailyQuizButton: !!document.querySelector("#ovBody #btnToQuiz"),
+    shownCode: document.querySelector("#fcCode")?.textContent,
+    rateActionsHidden: document.querySelector("#studyRateActions").classList.contains("hidden"),
+    prevDisabled: document.querySelector("#btnProjectStudyPrev").disabled,
+    nextLabel: document.querySelector("#btnProjectStudyNext").textContent
+  }));
+  assert(projectStudy.mode === "project" && projectStudy.hasCard && !projectStudy.hasDailyQuizButton && projectStudy.shownCode, "专项学习应重建卡片，不能沿用每日答题入口");
+  assert(projectStudy.rateActionsHidden && projectStudy.prevDisabled && projectStudy.nextLabel === "下一个", "专项学习应仅显示上一个和下一个");
+  await page.click("#btnProjectStudyNext");
+  await page.waitForTimeout(150);
+  assert(await page.evaluate(() => session.idx === 1 && !document.querySelector("#btnProjectStudyPrev").disabled), "专项学习点击下一个后应进入下一张，且可返回上一张");
+  await page.evaluate(() => { session.idx = session.queue.length - 1; session.done = session.idx; renderCard(); });
+  assert((await page.textContent("#btnProjectStudyNext")) === "完成今日学习", "专项最后一张的下一个应显示为完成今日学习");
+  await page.click("#btnProjectStudyNext");
+  await page.waitForTimeout(150);
+  assert(await page.evaluate(() => document.querySelector("#studyOverlay").classList.contains("hidden") && !document.querySelector("#view-project").classList.contains("hidden")), "完成专项学习后应回到专项项目页");
+  await page.locator("#projectBody button", { hasText: "今日专项答题" }).click();
+  await page.waitForTimeout(150);
   const expectedCorrect = await page.evaluate(() => {
     const q = quiz.current;
     const wrongIndex = (q.correctIndex + 1) % q.options.length;
