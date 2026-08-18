@@ -77,7 +77,7 @@ function assert(cond, msg) {
   await page.reload({ waitUntil: "load" });
   assert((await page.textContent("#stNew")) === "3", "每日新卡应为 3");
 
-  // 阶段一：学习。首卡“忘记”应重新学习，且不进错题本
+  // 阶段一：学习。仅保留上一个和下一个；下一个自动将当前卡记为已学习。
   await page.click("#btnStart");
   await page.waitForTimeout(250);
   const firstCode = (await page.textContent("#fcCode")).trim();
@@ -97,11 +97,16 @@ function assert(cond, msg) {
   const studyNotes = await page.textContent("#fcBubbles");
   assert(studyNotes.includes("学习中测试竞品") && studyNotes.includes("学习中测试备注"), "学习中保存的竞品与备注应立即显示");
 
-  await page.click('.rate-btn[data-rate="again"]');
-  await page.waitForTimeout(200);
+  const dailyStudyNav = await page.evaluate(() => ({
+    rateButtons: document.querySelectorAll(".rate-btn").length,
+    prevDisabled: document.querySelector("#btnStudyPrev").disabled,
+    nextLabel: document.querySelector("#btnStudyNext").textContent,
+    noteLabel: document.querySelector("#btnStudyDetail").textContent
+  }));
+  assert(dailyStudyNav.rateButtons === 0 && dailyStudyNav.prevDisabled && dailyStudyNav.nextLabel === "下一个" && dailyStudyNav.noteLabel === "补充竞品与备注", "学习页应只保留上一个、下一个及补充竞品与备注");
   for (let i = 0; i < 15; i++) {
     if (await page.$("#btnToQuiz")) break;
-    await page.click('.rate-btn[data-rate="good"]');
+    await page.click("#btnStudyNext");
     await page.waitForTimeout(180);
   }
   assert(await page.$("#btnToQuiz"), "学习阶段完成后应出现“开始答题”");
@@ -111,7 +116,7 @@ function assert(cond, msg) {
     const learning = Object.values(st.srs).filter(s => s.reps > 0 && !s.wrong && (s.interval || 0) < 120).length;
     return { againWrong: st.srs[againId].wrong, learning };
   }, firstCode);
-  assert(studyState.againWrong === false, "翻卡“忘记”不应进错题本");
+  assert(studyState.againWrong === false, "自动记录学习不应进错题本");
   assert(studyState.learning === 3, "学习阶段应让 3 个产品进入学习中: " + studyState.learning);
 
   // 阶段二：答题。昨天的错题应排在最前，队列为 1+3
@@ -254,18 +259,17 @@ function assert(cond, msg) {
     hasCard: !!document.querySelector("#ovBody #flashcard"),
     hasDailyQuizButton: !!document.querySelector("#ovBody #btnToQuiz"),
     shownCode: document.querySelector("#fcCode")?.textContent,
-    rateActionsHidden: document.querySelector("#studyRateActions").classList.contains("hidden"),
-    prevDisabled: document.querySelector("#btnProjectStudyPrev").disabled,
-    nextLabel: document.querySelector("#btnProjectStudyNext").textContent
+    prevDisabled: document.querySelector("#btnStudyPrev").disabled,
+    nextLabel: document.querySelector("#btnStudyNext").textContent
   }));
   assert(projectStudy.mode === "project" && projectStudy.hasCard && !projectStudy.hasDailyQuizButton && projectStudy.shownCode, "专项学习应重建卡片，不能沿用每日答题入口");
-  assert(projectStudy.rateActionsHidden && projectStudy.prevDisabled && projectStudy.nextLabel === "下一个", "专项学习应仅显示上一个和下一个");
-  await page.click("#btnProjectStudyNext");
+  assert(projectStudy.prevDisabled && projectStudy.nextLabel === "下一个", "专项学习应仅显示上一个和下一个");
+  await page.click("#btnStudyNext");
   await page.waitForTimeout(150);
-  assert(await page.evaluate(() => session.idx === 1 && !document.querySelector("#btnProjectStudyPrev").disabled), "专项学习点击下一个后应进入下一张，且可返回上一张");
+  assert(await page.evaluate(() => session.idx === 1 && !document.querySelector("#btnStudyPrev").disabled), "专项学习点击下一个后应进入下一张，且可返回上一张");
   await page.evaluate(() => { session.idx = session.queue.length - 1; session.done = session.idx; renderCard(); });
-  assert((await page.textContent("#btnProjectStudyNext")) === "完成今日学习", "专项最后一张的下一个应显示为完成今日学习");
-  await page.click("#btnProjectStudyNext");
+  assert((await page.textContent("#btnStudyNext")) === "完成今日学习", "专项最后一张的下一个应显示为完成今日学习");
+  await page.click("#btnStudyNext");
   await page.waitForTimeout(150);
   assert(await page.evaluate(() => document.querySelector("#studyOverlay").classList.contains("hidden") && !document.querySelector("#view-project").classList.contains("hidden")), "完成专项学习后应回到专项项目页");
   await page.locator("#projectBody button", { hasText: "今日专项答题" }).click();
