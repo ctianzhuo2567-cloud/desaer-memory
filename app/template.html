@@ -98,7 +98,7 @@
   .icon-chip.bad{background:var(--bad-soft)}
   .icon-chip.neutral{background:var(--tint)}
   .chev{color:var(--faint);font-size:20px;font-weight:700;line-height:1}
-  .btn,.row,.opt,.chips button{transition:background .15s ease,border-color .15s ease,color .15s ease,transform .1s ease}
+  .btn,.row,.opt,.rate-btn,.chips button{transition:background .15s ease,border-color .15s ease,color .15s ease,transform .1s ease}
   .list .row{cursor:pointer}
   .searchbox,.edit{transition:border-color .15s ease}
   @media (hover:hover){
@@ -109,6 +109,7 @@
     .tabbar button:hover .ico{background:var(--tint)}
     .chips button:hover{border-color:var(--brand);color:var(--brand)}
     .opt:not(:disabled):hover{border-color:var(--brand);background:#ffffff}
+    .rate-btn:hover{background:#ffffff;border-color:#d3d4d1}
     .searchbox:hover{border-color:#d3d4d1}
     .edit:hover{border-color:#d3d4d1}
   }
@@ -178,7 +179,13 @@
   .fc-back .competitors{background:var(--warn-soft);border-radius:10px;padding:8px 10px;font-size:13px;color:var(--warn)}
   .ov-actions{padding:8px 12px calc(14px + env(safe-area-inset-bottom));background:var(--card);border-top:1px solid var(--line)}
   .study-detail{display:flex;width:100%;margin-bottom:8px;padding:8px 12px;font-size:13px}
+  .rate-row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
   .study-nav{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+  .rate-btn{border:1px solid var(--line);background:var(--tint);border-radius:12px;padding:12px 4px;font-family:inherit;cursor:pointer;text-align:center}
+  .rate-btn b{display:block;font-size:15px}
+  .rate-btn.again b{color:var(--bad)} .rate-btn.hard b{color:var(--warn)}
+  .rate-btn.good b{color:var(--ok)} .rate-btn.easy b{color:var(--brand)}
+  .rate-btn:active{transform:scale(.97)}
   .done-box{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;padding:24px}
   .done-box .big{font-size:48px}
   .quiz-card{width:100%;max-width:470px;background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:18px;display:flex;flex-direction:column;gap:10px}
@@ -391,9 +398,15 @@
     </div>
     <div class="ov-actions">
       <button class="btn sm study-detail" id="btnStudyDetail">补充竞品与备注</button>
-      <div class="study-nav" id="studyNavActions">
-        <button class="btn block" id="btnStudyPrev">上一个</button>
-        <button class="btn primary block" id="btnStudyNext">下一个</button>
+      <div class="rate-row" id="studyRateActions">
+        <button class="rate-btn again" data-rate="again"><b>不认识</b></button>
+        <button class="rate-btn hard" data-rate="hard"><b>模糊</b></button>
+        <button class="rate-btn good" data-rate="good"><b>认识</b></button>
+        <button class="rate-btn easy" data-rate="easy"><b>掌握</b></button>
+      </div>
+      <div class="study-nav hidden" id="projectStudyActions">
+        <button class="btn block" id="btnProjectStudyPrev">上一个</button>
+        <button class="btn primary block" id="btnProjectStudyNext">下一个</button>
       </div>
     </div>
   </div>
@@ -533,7 +546,7 @@ function openStudy(mode, id){
     toast(mode === "one" ? "该产品已在学习中" : "今日没有要学习的内容");
     return;
   }
-  session = { queue: mode === "one" ? q : shuffleNoAdjacent(q.slice()), idx:0, mode:mode, done:0, again:0, credited:{}, uniqueTotal:q.length };
+  session = { queue: mode === "one" ? q : shuffleNoAdjacent(q.slice()), idx:0, mode:mode, done:0, again:0, uniqueTotal:q.length };
   $("#studyOverlay").classList.remove("hidden");
   $("#ovBody").innerHTML = FLASHCARD_HTML;
   document.body.style.overflow = "hidden";
@@ -662,46 +675,29 @@ function renderCard(){
   $("#flashcard").classList.remove("flipped");
 }
 function syncStudyActions(){
-  $("#btnStudyDetail").classList.remove("hidden");
-  $("#studyNavActions").classList.remove("hidden");
-  $("#btnStudyPrev").disabled = session.idx === 0;
-  $("#btnStudyNext").textContent = session.idx === session.queue.length - 1 ? "完成今日学习" : "下一个";
+  const isProject = session.mode === "project";
+  $("#studyRateActions").classList.toggle("hidden", isProject);
+  $("#projectStudyActions").classList.toggle("hidden", !isProject);
+  if(!isProject) return;
+  $("#btnProjectStudyPrev").disabled = session.idx === 0;
+  $("#btnProjectStudyNext").textContent = session.idx === session.queue.length - 1 ? "完成今日学习" : "下一个";
 }
-function prevStudyCard(){
-  if(session.idx === 0) return;
+function prevProjectStudyCard(){
+  if(session.mode !== "project" || session.idx === 0) return;
   session.idx -= 1;
+  session.done = session.idx;
   renderCard();
 }
-function creditCurrentStudyCard(){
-  if(session.mode === "project") return;
-  session.credited = session.credited || {};
-  const p = currentProduct();
-  if(session.credited[p.id]) return;
-  const s = srsOf(p.id) || blankSrs();
-  s.reps += 1;
-  if(!s.introDay) s.introDay = dayKey();
-  s.interval = s.interval > 0 ? 7 : 1;
-  s.due = Date.now() + s.interval * DAY;
-  s.stage = stageOf(s);
-  state.srs[p.id] = s;
-  session.credited[p.id] = true;
-  session.done = Object.keys(session.credited).length;
-  saveState();
-}
-function nextStudyCard(){
+function nextProjectStudyCard(){
+  if(session.mode !== "project") return;
   if(session.idx === session.queue.length - 1){
-    if(session.mode === "project"){
-      session.done = session.uniqueTotal;
-      closeStudy();
-      toast("今日专项学习已完成");
-    }else{
-      creditCurrentStudyCard();
-      renderDone();
-    }
+    session.done = session.uniqueTotal;
+    closeStudy();
+    toast("今日专项学习已完成");
     return;
   }
-  creditCurrentStudyCard();
   session.idx += 1;
+  session.done = session.idx;
   renderCard();
 }
 function fillCardBack(p){
@@ -739,6 +735,52 @@ function fillCardBack(p){
   }
 }
 
+function applyRate(q){
+  const p = currentProduct();
+  if(session.mode === "project"){
+    if(q === "again" || q === "hard"){
+      if(q === "again") session.again += 1;
+      session.queue.push(p.id);
+    }else{
+      session.done += 1;
+    }
+    session.idx += 1;
+    if(session.idx >= session.queue.length) renderDone(); else renderCard();
+    return;
+  }
+  let s = srsOf(p.id) || blankSrs();
+  s.reps += 1;
+  if(!s.introDay) s.introDay = dayKey();
+  const now = Date.now();
+  const prevInterval = s.interval;
+  if(q === "again"){
+    s.lapses += 1;
+    s.interval = 0; s.due = 0;
+    session.again += 1;
+    session.queue.push(p.id);
+  }else if(q === "hard"){
+    s.interval = 0; s.due = 0;
+    session.queue.push(p.id);
+  }else if(q === "good"){
+    s.interval = prevInterval > 0 ? 7 : 1;
+    s.due = now + s.interval * DAY;
+    session.done += 1;
+  }else{
+    s.interval = 7;
+    s.due = now + s.interval * DAY;
+    session.done += 1;
+  }
+  s.stage = stageOf(s);
+  state.srs[p.id] = s;
+  saveState();
+  session.idx += 1;
+  if(session.idx >= session.queue.length){
+    renderDone();
+  }else{
+    renderCard();
+  }
+}
+
 function renderDone(){
   const body = $("#ovBody");
   body.innerHTML = "";
@@ -756,8 +798,6 @@ function renderDone(){
     box.appendChild(btn);
   }
   body.appendChild(box);
-  $("#btnStudyDetail").classList.add("hidden");
-  $("#studyNavActions").classList.add("hidden");
   $("#progBar").style.width = "100%";
   $("#progCount").textContent = "0 张";
 }
@@ -1332,7 +1372,7 @@ function openProjectStudy(projId){
   const pr = projById(projId);
   if(!pr || !pr.productIds.length){ toast("该项目还没有产品，请先添加"); return; }
   const q = shuffle(pr.productIds.slice());
-  session = { queue: q, idx:0, mode:"project", projectId: projId, done:0, again:0, credited:{}, uniqueTotal:q.length };
+  session = { queue: q, idx:0, mode:"project", projectId: projId, done:0, again:0, uniqueTotal:q.length };
   $("#studyOverlay").classList.remove("hidden");
   // 学习浮层会在每日学习结束后保留完成页；专项学习必须重建卡片，避免沿用“开始答题”按钮。
   $("#ovBody").innerHTML = FLASHCARD_HTML;
@@ -1819,8 +1859,8 @@ document.addEventListener("click", e => {
 $("#btnStart").addEventListener("click", () => openStudy("combined"));
 $("#btnQuitStudy").addEventListener("click", closeStudy);
 $("#btnStudyDetail").addEventListener("click", openStudyDetail);
-$("#btnStudyPrev").addEventListener("click", prevStudyCard);
-$("#btnStudyNext").addEventListener("click", nextStudyCard);
+$("#btnProjectStudyPrev").addEventListener("click", prevProjectStudyCard);
+$("#btnProjectStudyNext").addEventListener("click", nextProjectStudyCard);
 $("#btnQuitQuiz").addEventListener("click", closeQuiz);
 $("#studyOverlay").addEventListener("click", e => {
   const fc = e.target.closest("#flashcard");
@@ -1829,6 +1869,7 @@ $("#studyOverlay").addEventListener("click", e => {
     fc.classList.toggle("flipped");
   }
 });
+$$(".rate-btn").forEach(b => b.addEventListener("click", () => applyRate(b.dataset.rate)));
 $("#btnBack").addEventListener("click", () => history.back());
 $("#btnProjectBack").addEventListener("click", () => history.back());
 $("#btnScoreBack").addEventListener("click", () => history.back());
