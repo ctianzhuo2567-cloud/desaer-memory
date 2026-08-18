@@ -17,7 +17,7 @@
     /* Paper & Ink：档案纸墨，暖白纸面 + 单一蓝强调 */
     --bg:#fafaf9; --card:#ffffff; --line:#e9e7e1; --tint:#f6f5f2;
     --ink:#191917; --sub:#6f6d67; --faint:#a5a39c;
-    --brand:#2563eb; --brand-soft:#eef3ff; --deep:#101828;
+    --brand:#2563eb; --brand-hover:#1d4ed8; --brand-soft:#eef3ff; --deep:#101828;
     --accent:#525c66; --accent-soft:#f0f2f3;
     --ok:#15803d; --ok-soft:#eef7f0; --bad:#c62828; --bad-soft:#fceeee;
     --warn:#b45309; --warn-soft:#faf1e4;
@@ -25,7 +25,7 @@
   }
   body[data-plan="deep"]{
     /* 深度掌握使用低饱和莫兰迪紫，与快速认型的学习蓝清晰区分。 */
-    --brand:#766d91; --brand-soft:#f0edf6;
+    --brand:#766d91; --brand-hover:#655d7d; --brand-soft:#f0edf6;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;padding:0}
@@ -110,7 +110,7 @@
   .searchbox,.edit{transition:border-color .15s ease}
   @media (hover:hover){
     .btn:hover{background:var(--tint)}
-    .btn.primary:hover{background:#1d4ed8;border-color:#1d4ed8}
+    .btn.primary:hover{background:var(--brand-hover);border-color:var(--brand-hover)}
     .btn.ghost:hover{background:var(--tint)}
     .row[data-go]:hover,.list .row:hover{background:var(--tint)}
     .tabbar button:hover .ico{background:var(--tint)}
@@ -1748,6 +1748,7 @@ function planStats(key){
 function refreshHome(){
   const stats = planStats(activePlan);
   document.body.dataset.plan = activePlan;
+  document.querySelector('meta[name="theme-color"]').setAttribute("content", activePlan === "deep" ? "#766d91" : "#2563eb");
   $("#btnPlanQuick").classList.toggle("active", activePlan === "quick");
   $("#btnPlanDeep").classList.toggle("active", activePlan === "deep");
   $("#stPending").textContent = stats.pending;
