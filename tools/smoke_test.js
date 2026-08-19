@@ -99,10 +99,15 @@ function assert(cond, msg) {
     return {
       centered: back.classList.contains("quick-answer-face") && style.alignItems === "center" && style.justifyContent === "center",
       name: back.querySelector(".quick-answer-name")?.textContent || "",
-      category: back.querySelector(".quick-answer-category")?.textContent || ""
+      category: back.querySelector(".quick-answer-category")?.textContent || "",
+      typeProminent: (() => {
+        const type = back.querySelector(".quick-answer-type");
+        const typeStyle = type ? getComputedStyle(type) : null;
+        return !!typeStyle && parseFloat(typeStyle.fontSize) >= 20 && typeStyle.backgroundColor !== "rgba(0, 0, 0, 0)";
+      })()
     };
   });
-  assert(quickAnswerFace.centered && quickAnswerFace.name && quickAnswerFace.category, "快速认型翻面应居中显示产品名称和品类");
+  assert(quickAnswerFace.centered && quickAnswerFace.name && quickAnswerFace.category && quickAnswerFace.typeProminent, "快速认型翻面应居中显示产品名称和品类，并突出产品类型");
   await page.click("#flashcard");
 
   // 学习中可进入详情补充竞品与备注，返回后应回到同一张卡片
