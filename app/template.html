@@ -167,6 +167,10 @@
   .fc-face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:20px;display:flex;flex-direction:column;overflow:hidden}
   .fc-front{align-items:center;justify-content:center;text-align:center;gap:10px}
   .fc-back{transform:rotateY(180deg);overflow-y:auto}
+  .fc-back.quick-answer-face{align-items:center;justify-content:center;text-align:center;overflow:hidden}
+  .quick-answer-name{font-size:25px;font-weight:800;line-height:1.3;word-break:break-word}
+  .quick-answer-category{margin-top:10px;color:var(--brand);font-size:18px;font-weight:700}
+  .quick-answer-type{margin-top:7px;padding:4px 10px;border-radius:99px;background:var(--brand-soft);color:var(--brand);font-size:13px;font-weight:600}
   .fc-front .code{font-size:26px;font-weight:800;letter-spacing:.4px;word-break:break-all}
   .fc-front .name{color:var(--brand);font-size:18px;font-weight:700}
   .fc-front .bubbles{display:flex;flex-direction:column;align-items:stretch;gap:6px;width:100%;max-width:340px}
@@ -781,11 +785,17 @@ function nextProjectStudyCard(){
 function fillCardBack(p){
   const back = $("#fcBack");
   back.innerHTML = "";
+  back.classList.toggle("quick-answer-face", session.plan === "quick");
+  if(session.plan === "quick"){
+    back.appendChild(el("div", {class:"quick-answer-name"}, p.name));
+    back.appendChild(el("div", {class:"quick-answer-category"}, p.category));
+    back.appendChild(el("div", {class:"quick-answer-type"}, p.type));
+    return;
+  }
   back.appendChild(el("div", {class:"chip"}, p.category + " · " + p.type));
   const lbl = (t) => el("div", {class:"lbl"}, t);
   back.appendChild(lbl("产品类型"));
   back.appendChild(el("div", {class:"type"}, p.type));
-  if(session.plan === "quick") return;
   if(p.features && p.features.length){
     back.appendChild(lbl("特点 / 性能"));
     const ul = el("ul");

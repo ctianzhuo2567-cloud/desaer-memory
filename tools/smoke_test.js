@@ -92,6 +92,18 @@ function assert(cond, msg) {
   await page.click("#btnStart");
   await page.waitForTimeout(250);
   const firstCode = (await page.textContent("#fcCode")).trim();
+  await page.click("#flashcard");
+  const quickAnswerFace = await page.evaluate(() => {
+    const back = document.querySelector("#fcBack");
+    const style = getComputedStyle(back);
+    return {
+      centered: back.classList.contains("quick-answer-face") && style.alignItems === "center" && style.justifyContent === "center",
+      name: back.querySelector(".quick-answer-name")?.textContent || "",
+      category: back.querySelector(".quick-answer-category")?.textContent || ""
+    };
+  });
+  assert(quickAnswerFace.centered && quickAnswerFace.name && quickAnswerFace.category, "快速认型翻面应居中显示产品名称和品类");
+  await page.click("#flashcard");
 
   // 学习中可进入详情补充竞品与备注，返回后应回到同一张卡片
   await page.click("#btnStudyDetail");
