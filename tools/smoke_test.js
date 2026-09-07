@@ -25,7 +25,7 @@ function assert(cond, msg) {
   });
 
   await page.goto(pathToFileURL(path.resolve(html)).href, { waitUntil: "load" });
-  assert((await page.textContent("#stPending")) === "263", "待学习初始应为 263");
+  assert((await page.textContent("#stPending")) === String(await page.evaluate(() => PRODUCTS.length)), "待学习初始应等于产品总数");
   assert((await page.textContent("#stNew")) === "20", "新卡默认 20");
 
   // 旧版单一进度必须一次性迁移到快速认型，且不误写入深度掌握。
@@ -209,7 +209,7 @@ function assert(cond, msg) {
   assert(mastery.stage === "mastered" && mastery.wrong === false && mastery.interval >= 21,
     "累计答对 3 次应掌握: " + JSON.stringify(mastery));
   await page.evaluate(() => refreshHome());
-  assert((await page.textContent("#stPending")) === "259", "待学习应随学习减少: " + (await page.textContent("#stPending")));
+  assert((await page.textContent("#stPending")) === String(await page.evaluate(() => PRODUCTS.length - 4)), "待学习应随学习减少: " + (await page.textContent("#stPending")));
 
   // 基础回归
   await page.click('.tabbar button[data-tab="library"]');
@@ -225,6 +225,15 @@ function assert(cond, msg) {
   assert(detailCode.includes("KF"), "详情页应显示 KF");
   const specValues = await page.$$eval("#view-detail .kv .v", els => els.length);
   assert(specValues >= 3, "详情页应有规格指标");
+  await page.click("#btnBack");
+  await page.waitForTimeout(300);
+  await page.fill("#searchInput", "CW8323");
+  await page.waitForTimeout(350);
+  assert(await page.$$eval("#libList .row", els => els.length) === 1, "新增产品 CW8323 应可唯一检索");
+  await page.click("#libList .row");
+  await page.waitForTimeout(200);
+  assert((await page.textContent(".d-head .code")).trim() === "DESOCOR CW8323", "新增产品详情应显示 CW8323");
+  assert((await page.textContent("#detailBody")).includes("水晶高光效果"), "新增产品详情应保留说明书性能");
   await page.click("#btnBack");
   await page.waitForTimeout(300);
   await page.fill("#searchInput", "D Pigments");
