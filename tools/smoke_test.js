@@ -25,7 +25,8 @@ function assert(cond, msg) {
   });
 
   await page.goto(pathToFileURL(path.resolve(html)).href, { waitUntil: "load" });
-  assert((await page.textContent("#stPending")) === String(await page.evaluate(() => PRODUCTS.length)), "待学习初始应等于产品总数");
+  const eligibleCount = await page.evaluate(() => PRODUCTS.filter(p => !p.retired).length);
+  assert((await page.textContent("#stPending")) === String(eligibleCount), "待学习初始应只包含未淘汰产品");
   assert((await page.textContent("#stNew")) === "20", "新卡默认 20");
 
   // 旧版单一进度必须一次性迁移到快速认型，且不误写入深度掌握。
@@ -48,6 +49,13 @@ function assert(cond, msg) {
   const esp = catalogUpdate.products.find(p => p.code === "DESOBATE ESP");
   assert(esp && esp.category === "浸水" && esp.type === "浸水酶", "ESP 应归入浸水分类并标为浸水酶");
   assert(!catalogUpdate.hasSourceText, "关于页不应再显示产品数据来源说明");
+
+  const retirement = await page.evaluate(() => ({
+    count: PRODUCTS.filter(p => p.retired).length,
+    kf: PRODUCTS.find(p => p.code === "DESOAGEN KF")?.retired === true,
+    missing: PRODUCTS.filter(p => p.retired && !p.code).length
+  }));
+  assert(retirement.count === 30 && retirement.kf && retirement.missing === 0, "应标记 30 个有记录的淘汰产品");
 
   // 专项答题的外观只应使用形态，不包含颜色、透明度等描述
   const appearanceShapes = await page.evaluate(() => [...new Set(PRODUCTS.map(appearanceOf).filter(Boolean))]);
@@ -77,7 +85,7 @@ function assert(cond, msg) {
   const targetCode = await page.evaluate(() => {
     const st = JSON.parse(localStorage.getItem("desaar_memory_v1"));
     const batch = st.plans.quick.meta.batch || [];
-    const target = PRODUCTS.find(p => !batch.includes(p.id));
+    const target = PRODUCTS.find(p => !p.retired && !batch.includes(p.id));
     st.plans.quick.srs[target.id] = {
       reps: 0, lapses: 0, interval: 0, due: 0,
       wrong: true, lastWrong: Date.now() - 86400000, introDay: "", stage: "wrong", quizCorrect: 0, level:-1, mastered:false, plan:"quick"
@@ -209,7 +217,7 @@ function assert(cond, msg) {
   assert(mastery.stage === "mastered" && mastery.wrong === false && mastery.interval >= 21,
     "累计答对 3 次应掌握: " + JSON.stringify(mastery));
   await page.evaluate(() => refreshHome());
-  assert((await page.textContent("#stPending")) === String(await page.evaluate(() => PRODUCTS.length - 4)), "待学习应随学习减少: " + (await page.textContent("#stPending")));
+  assert((await page.textContent("#stPending")) === String(eligibleCount - 4), "待学习应随学习减少: " + (await page.textContent("#stPending")));
 
   // 基础回归
   await page.click('.tabbar button[data-tab="library"]');
@@ -223,6 +231,11 @@ function assert(cond, msg) {
   await page.waitForTimeout(200);
   const detailCode = (await page.textContent(".d-head .code")).trim();
   assert(detailCode.includes("KF"), "详情页应显示 KF");
+  const retiredActions = await page.evaluate(() => ({
+    label: Array.from(document.querySelectorAll("#detailBody button")).find(b => b.textContent.includes("已淘汰"))?.textContent || "",
+    disabled: Array.from(document.querySelectorAll("#detailBody button")).filter(b => b.textContent.includes("已淘汰")).every(b => b.disabled)
+  }));
+  assert(retiredActions.label && retiredActions.disabled, "淘汰产品详情不应允许新学习或加入新池");
   const specValues = await page.$$eval("#view-detail .kv .v", els => els.length);
   assert(specValues >= 3, "详情页应有规格指标");
   await page.click("#btnBack");
@@ -252,7 +265,7 @@ function assert(cond, msg) {
 
   // 深度掌握：详情页一键加入产品池；每日从该池随机抽取，卡片使用深度信息，pH 仅对有数据的产品出题。
   const deepProduct = await page.evaluate(() => {
-    const p = PRODUCTS.find(p => phOf(p) && deepDistractorPool("ph", phOf(p)).length >= 3) || PRODUCTS.find(p => p.features && p.features.length);
+    const p = PRODUCTS.find(p => !p.retired && phOf(p) && deepDistractorPool("ph", phOf(p)).length >= 3) || PRODUCTS.find(p => !p.retired && p.features && p.features.length);
     openDetail(p.id);
     return p.code;
   });
@@ -282,14 +295,15 @@ function assert(cond, msg) {
   await page.click('.tabbar button[data-tab="projects"]');
   await page.click("#btnNewProject");
   await page.waitForTimeout(200);
+  assert(await page.$$eval("#pickList .chip.retired", els => els.length) === 0, "新建专项的选品列表不应显示淘汰产品");
   const pickCats = await page.$$eval("#pickCatChips button", els => els.map(e => e.textContent.trim()));
   assert(pickCats.includes("全部") && pickCats.includes("浸水") && pickCats.includes("脱脂"), "专项选产品应显示产品库分类");
   await page.locator("#pickCatChips button", { hasText: "浸水" }).click();
   const pickRowsAreSoaking = await page.$$eval("#pickList .row .s", els => els.length > 0 && els.every(e => e.textContent.includes("· 浸水")));
   assert(pickRowsAreSoaking, "选择浸水分类后应只显示浸水产品");
-  await page.fill("#pickInput", "KF");
+  await page.fill("#pickInput", "EWT");
   const filteredPickCodes = await page.$$eval("#pickList .row .t", els => els.map(e => e.textContent.trim()));
-  assert(filteredPickCodes.length >= 1 && filteredPickCodes.every(code => code.includes("KF")), "专项分类筛选应可叠加搜索");
+  assert(filteredPickCodes.length >= 1 && filteredPickCodes.every(code => code.includes("EWT")), "专项分类筛选应可叠加搜索");
   await page.click("#btnPickClose");
   await page.waitForTimeout(200);
 

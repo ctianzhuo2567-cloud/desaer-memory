@@ -66,6 +66,7 @@
     font-family:inherit;font-weight:600;cursor:pointer;
   }
   .btn:active{transform:scale(.98)}
+  .btn:disabled{opacity:.52;cursor:not-allowed}
   .btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}
   .btn.block{display:flex;width:100%}
   .btn.sm{padding:7px 12px;font-size:13px;border-radius:10px}
@@ -595,6 +596,7 @@ function newRemaining(key){
 function newPool(key){
   key = key || activePlan;
   return planProducts(key).filter(p => {
+    if(p.retired) return false;
     const s = srsOf(p.id, key);
     return !s || (s.reps === 0 && !s.introDay);
   });
@@ -623,6 +625,13 @@ function buildQueue(mode, id, key){
 const FLASHCARD_HTML = '<div class="flashcard" id="flashcard"><div class="fc-inner"><div class="fc-face fc-front"><div class="code" id="fcCode"></div><div class="chip retired fc-retired hidden" id="fcRetired">已淘汰</div><div class="name" id="fcName"></div><div class="bubbles" id="fcBubbles"></div><div class="hint">点击卡片查看答案</div></div><div class="fc-face fc-back" id="fcBack"></div></div></div>';
 function openStudy(mode, id, key){
   key = key || activePlan;
+  if(mode === "one"){
+    const p = byId(id);
+    if(p && p.retired && !srsOf(id, key)){
+      toast("已淘汰产品不再加入新学习");
+      return;
+    }
+  }
   const q = buildQueue(mode, id, key);
   if(!q.length){
     toast(mode === "one" ? "该产品已在学习中" : "今日没有要学习的内容");
@@ -688,7 +697,11 @@ function dailyBatch(key){
   const today = dayKey();
   const meta = plan.meta;
   const limit = Math.max(1, meta.dailyNew || cfg.dailyNew);
-  if(meta.batchDay !== today || meta.batchSize !== limit || meta.batchScheme !== 4 || !Array.isArray(meta.batch)){
+  const hasRetiredFresh = Array.isArray(meta.batch) && meta.batch.some(pid => {
+    const p = byId(pid), s = srsOf(pid, key);
+    return p && p.retired && (!s || (s.reps === 0 && !s.introDay));
+  });
+  if(meta.batchDay !== today || meta.batchSize !== limit || meta.batchScheme !== 4 || !Array.isArray(meta.batch) || hasRetiredFresh){
     if(!meta.userSeed){
       meta.userSeed = Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10);
     }
@@ -1611,6 +1624,7 @@ function refreshPickList(){
   list.innerHTML = "";
   const rows = PRODUCTS.filter(p =>
     (currentCat === "全部" || p.category === currentCat)
+    && (!p.retired || pickSelected.includes(p.id))
     && (!q || norm(p.code).includes(q) || norm(p.name).includes(q))
   );
   rows.forEach(p => {
@@ -1931,7 +1945,10 @@ function refreshDetail(){
   body.appendChild(head);
 
   const actions = el("div", {class:"card", style:"display:flex;gap:8px;flex-wrap:wrap"});
-  const bStudy = el("button", {class:"btn primary sm"}, "立即" + PLAN_CONFIG[activePlan].label);
+  const hasStudyRecord = !!srsOf(p.id, activePlan);
+  const canStartStudy = !p.retired || hasStudyRecord;
+  const bStudy = el("button", {class:"btn primary sm"}, canStartStudy ? "立即" + PLAN_CONFIG[activePlan].label : "已淘汰，不再新学");
+  bStudy.disabled = !canStartStudy;
   bStudy.addEventListener("click", () => {
     if(activePlan === "deep" && !planOf("deep").selectedIds.includes(p.id)) planOf("deep").selectedIds.push(p.id);
     saveState(); openStudy("one", p.id, activePlan);
@@ -1951,7 +1968,9 @@ function refreshDetail(){
     saveState(); refreshDetail(); refreshHome();
   });
   const inDeep = planOf("deep").selectedIds.includes(p.id);
-  const bDeep = el("button", {class:"btn sm"}, inDeep ? "移出深度掌握" : "加入深度掌握");
+  const canAddDeep = inDeep || !p.retired;
+  const bDeep = el("button", {class:"btn sm"}, inDeep ? "移出深度掌握" : (canAddDeep ? "加入深度掌握" : "已淘汰，不加入新池"));
+  bDeep.disabled = !canAddDeep;
   bDeep.addEventListener("click", () => {
     const ids = planOf("deep").selectedIds;
     if(ids.includes(p.id)) planOf("deep").selectedIds = ids.filter(id => id !== p.id);
