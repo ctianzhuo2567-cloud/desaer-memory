@@ -55,7 +55,10 @@ function assert(cond, msg) {
     kf: PRODUCTS.find(p => p.code === "DESOAGEN KF")?.retired === true,
     missing: PRODUCTS.filter(p => p.retired && !p.code).length
   }));
-  assert(retirement.count === 30 && retirement.kf && retirement.missing === 0, "应标记 30 个有记录的淘汰产品");
+  assert(retirement.count === 54 && retirement.kf && retirement.missing === 0, "应保留原有淘汰记录并将 24 个未收录产品一并标记淘汰");
+  assert(await page.evaluate(() => PRODUCTS.find(p => p.code === "DESOSSE ASW")?.retired === true), "既有淘汰状态不应因最新版目录再次收录而自动清除");
+  const latestAdditions = await page.evaluate(() => ["DESOAGEN WG", "DESOAGEN DG", "DESOAGEN ZF", "DESOAGEN TLB", "DESOAGEN TLE", "DESOBATE FE-20", "DESOATEN ST-20", "DESOATEN A-40", "DESOATEN SF", "DESOPON UM", "DESOPON FS-A", "DESOPON UHX", "DESORAY DA3116", "DESORAY DU3291", "DESOTOP TU4265", "DESOCOR CW8516", "DESOFU M Pigments"].filter(code => PRODUCTS.some(p => p.code === code)));
+  assert(latestAdditions.length === 17, "最新版说明书的 17 个新增产品应进入产品库");
 
   // 专项答题的外观只应使用形态，不包含颜色、透明度等描述
   const appearanceShapes = await page.evaluate(() => [...new Set(PRODUCTS.map(appearanceOf).filter(Boolean))]);
