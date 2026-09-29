@@ -1,5 +1,5 @@
 /* 百品记 Service Worker：缓存名随构建内容变化，更新后自动让手机拿到新版本。 */
-const VERSION = "da94e3f8";
+const VERSION = "db2bed3f";
 const CACHE = "desaar-memory-" + VERSION;
 const ASSETS = [
   "./",

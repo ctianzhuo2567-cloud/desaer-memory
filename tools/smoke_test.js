@@ -55,8 +55,13 @@ function assert(cond, msg) {
     kf: PRODUCTS.find(p => p.code === "DESOAGEN KF")?.retired === true,
     missing: PRODUCTS.filter(p => p.retired && !p.code).length
   }));
-  assert(retirement.count === 54 && retirement.kf && retirement.missing === 0, "应保留原有淘汰记录并将 24 个未收录产品一并标记淘汰");
-  assert(await page.evaluate(() => PRODUCTS.find(p => p.code === "DESOSSE ASW")?.retired === true), "既有淘汰状态不应因最新版目录再次收录而自动清除");
+  assert(retirement.count === 53 && retirement.kf && retirement.missing === 0, "应保留未收录产品的淘汰记录并恢复在册产品状态");
+  const manualCorrections = await page.evaluate(() => ({
+    asw: PRODUCTS.find(p => p.id === "desosseasw"),
+    ls30: PRODUCTS.find(p => p.id === "desossels30"),
+    dc3333: PRODUCTS.find(p => p.id === "desoraydc3333")
+  }));
+  assert(manualCorrections.asw?.code === "DESOSSE ASW" && !manualCorrections.asw.retired && manualCorrections.ls30?.code === "DESOSSE LS30" && manualCorrections.dc3333?.code === "DESORAY DC3333", "ASW 应恢复在册，产品代码应与说明书一致且保留原产品 ID");
   const latestAdditions = await page.evaluate(() => ["DESOAGEN WG", "DESOAGEN DG", "DESOAGEN ZF", "DESOAGEN TLB", "DESOAGEN TLE", "DESOBATE FE-20", "DESOATEN ST-20", "DESOATEN A-40", "DESOATEN SF", "DESOPON UM", "DESOPON FS-A", "DESOPON UHX", "DESORAY DA3116", "DESORAY DU3291", "DESOTOP TU4265", "DESOCOR CW8516", "DESOFU M Pigments"].filter(code => PRODUCTS.some(p => p.code === code)));
   assert(latestAdditions.length === 17, "最新版说明书的 17 个新增产品应进入产品库");
 
