@@ -132,6 +132,10 @@
   .chips::-webkit-scrollbar{display:none}
   .chips button{flex:0 0 auto;border:1px solid var(--line);background:var(--card);border-radius:999px;padding:6px 13px;font-size:13px;color:var(--sub);font-family:inherit}
   .chips button.active{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:600}
+  .pick-bulk{margin:8px 0 10px;padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--tint)}
+  .pick-bulk-actions{display:flex;gap:8px;flex-wrap:wrap}
+  .pick-bulk-actions .btn{flex:1 1 150px;min-height:38px}
+  .pick-bulk .hint{margin-top:7px;color:var(--sub);font-size:12px;line-height:1.45}
   /* search */
   .searchbox{position:sticky;top:64px;z-index:10;display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;box-shadow:var(--shadow)}
   .searchbox input{flex:1;border:0;outline:0;font-size:16px;font-family:inherit;background:transparent}
@@ -364,6 +368,13 @@
           <select id="deepDailyNew" style="font-size:16px;padding:6px;border:1px solid var(--line);border-radius:8px"><option value="3">3</option><option value="5">5</option><option value="8">8</option></select>
         </div>
       </div>
+      <div class="sec-title">学习进度</div>
+      <div class="card">
+        <div class="row" style="margin:0">
+          <div class="main"><div class="t">重置学习进度</div><div class="s" style="white-space:normal">重新开始快速认型与深度掌握；保留产品备注、在册选品及专项项目和成绩</div></div>
+          <button class="btn sm" id="btnResetPlans" style="color:var(--bad)">重置</button>
+        </div>
+      </div>
       <div class="sec-title">数据管理</div>
       <div class="card">
         <div class="row" style="margin:0">
@@ -376,8 +387,8 @@
           <input type="file" id="importFile" accept=".json,application/json" style="display:none">
         </div>
         <div class="row" style="margin:0">
-          <div class="main"><div class="t">重置学习进度</div><div class="s">清空卡片状态、错题与备注</div></div>
-          <button class="btn sm" id="btnReset" style="color:var(--bad)">重置</button>
+          <div class="main"><div class="t">清空学习数据与备注</div><div class="s" style="white-space:normal">同时清除深度产品池；专项项目及成绩保留</div></div>
+          <button class="btn sm" id="btnReset" style="color:var(--bad)">清空</button>
         </div>
       </div>
       <div class="sec-title">关于</div>
@@ -461,6 +472,13 @@
         <input id="pickInput" type="search" placeholder="搜索产品代号或中文名" autocomplete="off">
       </div>
       <div class="chips" id="pickCatChips" style="margin-bottom:4px"></div>
+      <div id="deepPickBulk" class="pick-bulk hidden" aria-label="深度掌握批量选择">
+        <div class="pick-bulk-actions">
+          <button type="button" class="btn sm" id="btnPickSelectCategory">全选当前分类</button>
+          <button type="button" class="btn sm" id="btnPickSelectAll">全选全部在册产品</button>
+        </div>
+        <div class="hint">按分类批量选择时会纳入该分类全部在册产品；已淘汰产品不会加入深度掌握。</div>
+      </div>
       <div id="pickList"></div>
     </div>
     <div class="ov-actions">
@@ -1575,7 +1593,9 @@ function openPicker(mode, projId){
   $("#pickTitle").textContent = pickMode.mode === "deep" ? "深度掌握产品池" : (pickMode.mode === "new" ? "新建专项项目" : "管理产品 · " + pr.name);
   $("#pickName").style.display = pickMode.mode === "new" ? "" : "none";
   $("#pickName").value = pickMode.mode === "new" ? "" : (pr ? pr.name : "");
-  pickSelected = pickMode.mode === "deep" ? planOf("deep").selectedIds.slice() : (pr ? pr.productIds.slice() : []);
+  pickSelected = pickMode.mode === "deep"
+    ? planOf("deep").selectedIds.filter(id => { const p = byId(id); return p && !p.retired; })
+    : (pr ? pr.productIds.slice() : []);
   $("#pickInput").value = "";
   $("#pickCatChips").dataset.cat = "全部";
   renderPickCategories();
@@ -1598,6 +1618,50 @@ function updatePickSelected(cb, id){
     pickSelected = pickSelected.filter(x => x !== id);
   }
   $("#btnPickConfirm").textContent = "确认（" + pickSelected.length + "）";
+  renderPickBulkActions();
+}
+function renderPickBulkActions(){
+  const box = $("#deepPickBulk");
+  const isDeep = pickMode.mode === "deep";
+  box.classList.toggle("hidden", !isDeep);
+  if(!isDeep) return;
+  const currentCat = $("#pickCatChips").dataset.cat || "全部";
+  const allIds = PRODUCTS.filter(p => !p.retired).map(p => p.id);
+  const categoryIds = currentCat === "全部" ? [] : PRODUCTS.filter(p => !p.retired && p.category === currentCat).map(p => p.id);
+  const categoryButton = $("#btnPickSelectCategory");
+  const allButton = $("#btnPickSelectAll");
+  const categorySelected = categoryIds.length > 0 && categoryIds.every(id => pickSelected.includes(id));
+  const allSelected = allIds.length > 0 && allIds.every(id => pickSelected.includes(id));
+  categoryButton.classList.toggle("hidden", currentCat === "全部");
+  categoryButton.textContent = categorySelected ? "取消" + currentCat + "全选" : "全选" + currentCat + "（" + categoryIds.length + "）";
+  categoryButton.setAttribute("aria-pressed", String(categorySelected));
+  allButton.textContent = allSelected ? "清空全部选择" : "全选全部在册（" + allIds.length + "）";
+  allButton.setAttribute("aria-pressed", String(allSelected));
+}
+function toggleDeepPickGroup(ids, clearAllWhenSelected){
+  if(pickMode.mode !== "deep") return;
+  const targets = Array.from(new Set(ids)).filter(id => { const p = byId(id); return p && !p.retired; });
+  if(!targets.length){ toast("当前没有可选的在册产品"); return; }
+  const allSelected = targets.every(id => pickSelected.includes(id));
+  if(allSelected && clearAllWhenSelected){
+    pickSelected = [];
+  }else if(allSelected){
+    const remove = new Set(targets);
+    pickSelected = pickSelected.filter(id => !remove.has(id));
+  }else{
+    pickSelected = Array.from(new Set(pickSelected.concat(targets)));
+  }
+  refreshPickList();
+}
+function selectDeepCategory(){
+  if(pickMode.mode !== "deep") return;
+  const currentCat = $("#pickCatChips").dataset.cat || "全部";
+  if(currentCat === "全部") return;
+  toggleDeepPickGroup(PRODUCTS.filter(p => !p.retired && p.category === currentCat).map(p => p.id), false);
+}
+function selectAllDeepProducts(){
+  if(pickMode.mode !== "deep") return;
+  toggleDeepPickGroup(PRODUCTS.filter(p => !p.retired).map(p => p.id), true);
 }
 function renderPickCategories(){
   const chips = $("#pickCatChips");
@@ -1644,11 +1708,13 @@ function refreshPickList(){
     });
     list.appendChild(row);
   });
+  renderPickBulkActions();
   $("#btnPickConfirm").textContent = "确认（" + pickSelected.length + "）";
 }
 function confirmPick(){
   if(pickMode.mode === "deep"){
-    planOf("deep").selectedIds = pickSelected.slice();
+    const eligible = new Set(PRODUCTS.filter(p => !p.retired).map(p => p.id));
+    planOf("deep").selectedIds = Array.from(new Set(pickSelected.filter(id => eligible.has(id))));
     planOf("deep").meta.batchDay = "";
     saveState();
     closePicker();
@@ -2118,6 +2184,8 @@ $("#btnScoreBack").addEventListener("click", () => history.back());
 $("#btnNewProject").addEventListener("click", () => openPicker("new"));
 $("#btnPickClose").addEventListener("click", closePicker);
 $("#btnPickConfirm").addEventListener("click", confirmPick);
+$("#btnPickSelectCategory").addEventListener("click", selectDeepCategory);
+$("#btnPickSelectAll").addEventListener("click", selectAllDeepProducts);
 $("#pickInput").addEventListener("input", refreshPickList);
 $("#searchInput").addEventListener("input", debounce(refreshLibrary, 120));
 $("#searchClear").addEventListener("click", () => { $("#searchInput").value=""; refreshLibrary(); $("#searchInput").focus(); });
@@ -2167,8 +2235,25 @@ $("#importFile").addEventListener("change", e => {
   rd.readAsText(f, "utf-8");
   e.target.value = "";
 });
+function resetLearningProgress(){
+  const quickDailyNew = planOf("quick").meta.dailyNew || PLAN_CONFIG.quick.dailyNew;
+  const deepDailyNew = planOf("deep").meta.dailyNew || PLAN_CONFIG.deep.dailyNew;
+  const deepSelectedIds = planOf("deep").selectedIds.filter(id => { const p = byId(id); return p && !p.retired; });
+  state.plans.quick = defaultPlan("quick");
+  state.plans.deep = defaultPlan("deep");
+  state.plans.quick.meta.dailyNew = quickDailyNew;
+  state.plans.deep.meta.dailyNew = deepDailyNew;
+  state.plans.deep.selectedIds = deepSelectedIds;
+  saveState();
+  refreshAll();
+}
+$("#btnResetPlans").addEventListener("click", () => {
+  if(!confirm("确定重新开始快速认型和深度掌握吗？两套方案的卡片进度、错题、答题统计和批次将清空；产品备注、每日新产品设置、深度掌握中的在册选品，以及专项项目和成绩都会保留。已淘汰产品会从深度选品池排除。此操作不可恢复。")) return;
+  resetLearningProgress();
+  toast("两套学习方案已重置，产品备注和专项数据已保留");
+});
 $("#btnReset").addEventListener("click", () => {
-  if(confirm("确定要清空所有学习进度、错题与备注吗？此操作不可恢复。")){
+  if(confirm("确定清空两套学习进度、错题、产品备注和深度掌握产品池吗？学习设置将恢复默认；专项项目和成绩会保留。此操作不可恢复。")){
     const projects = state.projects || [];
     const projectScores = state.projectScores || {};
     localStorage.removeItem(LS_KEY);

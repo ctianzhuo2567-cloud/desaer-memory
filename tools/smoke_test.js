@@ -297,6 +297,21 @@ function assert(cond, msg) {
   assert(await page.evaluate(() => session.plan === "deep" && document.querySelectorAll(".rate-btn").length === 4), "深度掌握应使用独立进度并保留四级反馈");
   await page.click("#btnQuitStudy");
   await page.waitForTimeout(150);
+  await page.click("#btnManageDeep");
+  await page.waitForTimeout(150);
+  assert(await page.isVisible("#deepPickBulk"), "深度掌握选品页应显示批量选择控件");
+  await page.locator("#pickCatChips button", { hasText: "浸水" }).click();
+  const soakingIds = await page.evaluate(() => PRODUCTS.filter(p => p.category === "浸水" && !p.retired).map(p => p.id));
+  await page.click("#btnPickSelectCategory");
+  const categorySelection = await page.evaluate(() => ({ selected:pickSelected.slice(), active:PRODUCTS.filter(p => !p.retired).map(p => p.id) }));
+  assert(soakingIds.every(id => categorySelection.selected.includes(id)) && categorySelection.selected.every(id => categorySelection.active.includes(id)), "分类全选应选中该分类全部在册产品且不纳入淘汰产品");
+  await page.click("#btnPickSelectAll");
+  const allSelection = await page.evaluate(() => ({ selected:pickSelected.slice(), active:PRODUCTS.filter(p => !p.retired).map(p => p.id) }));
+  assert(allSelection.selected.length === allSelection.active.length && allSelection.active.every(id => allSelection.selected.includes(id)), "全部选择应选中所有在册产品且排除淘汰产品");
+  await page.click("#btnPickSelectAll");
+  assert(await page.evaluate(() => pickSelected.length === 0), "再次点击全选应可清空对应选择");
+  await page.click("#btnPickClose");
+  await page.waitForTimeout(150);
   await page.click("#btnPlanQuick");
 
   // 专项选产品：支持按与产品库相同的分类筛选，且可叠加搜索
@@ -385,6 +400,60 @@ function assert(cond, msg) {
   await page.waitForTimeout(150);
   assert((await page.textContent("#scoreBody")).includes("正确答案：" + expectedCorrect), "近 7 天得分应能再次打开答题详情");
   await page.goBack();
+
+  // 重置两套主学习方案时保留备注、在册深度选品池及专项数据，并排除已淘汰产品。
+  const resetFixture = await page.evaluate(() => {
+    const active = PRODUCTS.find(p => !p.retired);
+    const retired = PRODUCTS.find(p => p.retired);
+    const progress = (key) => Object.assign(blankSrs(key), { reps:2, wrong:true, due:Date.now() });
+    state.plans.quick.srs = { [active.id]:progress("quick"), [retired.id]:progress("quick") };
+    state.plans.deep.srs = { [active.id]:progress("deep"), [retired.id]:progress("deep") };
+    state.plans.quick.meta.dailyNew = 15;
+    state.plans.deep.meta.dailyNew = 8;
+    state.plans.quick.meta.batch = [retired.id];
+    state.plans.deep.meta.batch = [retired.id];
+    state.plans.deep.selectedIds = [active.id, retired.id];
+    state.plans.deep.meta.batchDay = dayKey();
+    state.plans.deep.meta.batchSize = 8;
+    state.plans.deep.meta.batchScheme = 4;
+    state.notes[active.id] = { memo:"保留备注", competitor:"竞品信息" };
+    state.projects = [{ id:"keep_reset_project", name:"保留专项", productIds:[active.id], createdAt:1, completed:false, completedAt:0 }];
+    state.projectScores = { keep_reset_project:[{ date:dayKey(), score:90 }] };
+    const epoch = state.meta.dataEpoch;
+    activePlan = "deep";
+    state.ui.activePlan = "deep";
+    saveState();
+    return { activeId:active.id, retiredId:retired.id, epoch:epoch };
+  });
+  await page.click('.tabbar button[data-tab="me"]');
+  await page.waitForTimeout(150);
+  page.once("dialog", dialog => dialog.accept());
+  await page.click("#btnResetPlans");
+  await page.waitForTimeout(150);
+  const resetResult = await page.evaluate(({activeId, retiredId}) => {
+    const quickBatch = dailyBatch("quick");
+    const deepBatch = dailyBatch("deep");
+    return {
+      quickSrs:Object.keys(planOf("quick").srs).length,
+      deepSrs:Object.keys(planOf("deep").srs).length,
+      quickDaily:planOf("quick").meta.dailyNew,
+      deepDaily:planOf("deep").meta.dailyNew,
+      deepSelected:planOf("deep").selectedIds,
+      memo:state.notes[activeId]?.memo,
+      competitor:state.notes[activeId]?.competitor,
+      projects:state.projects.map(p => p.id),
+      score:state.projectScores.keep_reset_project?.[0]?.score,
+      quickBatchRetired:quickBatch.some(id => byId(id)?.retired),
+      deepBatchRetired:deepBatch.some(id => byId(id)?.retired),
+      activePlan:activePlan,
+      epoch:state.meta.dataEpoch,
+      retiredId:retiredId
+    };
+  }, resetFixture);
+  assert(resetResult.quickSrs === 0 && resetResult.deepSrs === 0 && resetResult.quickDaily === 15 && resetResult.deepDaily === 8, "重置应清空两套卡片进度并保留每日新增设置");
+  assert(resetResult.deepSelected.length === 1 && resetResult.deepSelected[0] === resetFixture.activeId && !resetResult.deepSelected.includes(resetResult.retiredId), "重置应保留深度在册选品并剔除淘汰产品");
+  assert(resetResult.memo === "保留备注" && resetResult.competitor === "竞品信息" && resetResult.projects.includes("keep_reset_project") && resetResult.score === 90, "重置不应影响产品备注、专项项目或成绩");
+  assert(!resetResult.quickBatchRetired && !resetResult.deepBatchRetired && resetResult.activePlan === "deep" && resetResult.epoch === resetFixture.epoch, "新批次不得包含淘汰产品，重置也不得改变方案选择或 dataEpoch");
 
   const errs = errors.filter(e => !e.includes("favicon"));
   console.log("学习首卡:", firstCode, "| 答错反馈:", feedback);
