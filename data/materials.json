@@ -1,0 +1,151 @@
+[
+  {
+    "id": "desaer-catalog-202609-quick-map",
+    "title": "德赛尔产品目录 · 三页速记",
+    "summary": "202609 目录 · 242 个型号。型号沿用原图简写，关键词用于速记。",
+    "maps": [
+      {
+        "title": "水场基础",
+        "image": "catalog-202609-1.webp",
+        "width": 2222,
+        "height": 1571,
+        "count": 47,
+        "branches": [
+          {
+            "title": "浸水",
+            "text": "KMI：杀菌 · WT-H：润湿兼浸水 · EWT：浸水。\nWG浸、DG脱、ZF散：生物基三兄弟。"
+          },
+          {
+            "title": "脱脂",
+            "text": "DN/DA-C/DA-D/DA-88/DA-P/DE/DE-L/DW：非离子 · DA-68：低泡非离子。\nDA-L：非离子加阴离子 · DF-H：阴离子。\nDE-H：毛革 · DG-H：高含量毛革。"
+          },
+          {
+            "title": "浸灰",
+            "text": "POU/POU(L)：浸灰。\nLM-5：强缓冲 · HB-D：缓冲 · LM-S：有机硫。\nSDP/WDP：除垢。"
+          },
+          {
+            "title": "脱灰",
+            "text": "TH：脱灰 · TLA：无铵 · TLB：环保。\nTLE：无铵无硼 · TLN：高效无铵。"
+          },
+          {
+            "title": "酶制剂",
+            "text": "DEP：脱毛 · ESP：浸水 · FE-20：脂肪。\nU2：低温软化 · U5：无铵低温软化。\nBE-N/TN/SE：酸性软化。"
+          },
+          {
+            "title": "鞣制助剂",
+            "text": "MO/MO-10：自动提碱 · MAC：多功能鞣制助剂。"
+          },
+          {
+            "title": "鞣剂",
+            "text": "CFA：铬鞣 · CFD：多金属 · DR：含铬。\nCF-W/DWT：有机无铬。"
+          }
+        ],
+        "note": "易混点 · DG 在浸水大类下，具体标注是生物基脱脂剂。ESP 是浸水酶。"
+      },
+      {
+        "title": "复鞣与染整",
+        "image": "catalog-202609-2.webp",
+        "width": 2222,
+        "height": 1571,
+        "count": 127,
+        "branches": [
+          {
+            "title": "复鞣剂 / 金属与醛类",
+            "text": "CAN：铝中含铬 · ALF/AT-P：铝鞣。\nGT50：戊二醛 · GTW45：改性戊二醛。\nDC-N/MAA：柔软脂肪醛。"
+          },
+          {
+            "title": "复鞣剂 / 合成鞣剂",
+            "text": "SPS/NPS：高耐光 · S-10/S-202/S-30/STD：无受限双酚 · S-301P：复合 · S-70P/S-80P：高物性 · SBS：硬挺 · SBN：绵软（以上均无受限双酚）。\nBTL/BTL-1/ASW：酚类 · SAT/SAT-E/SAT-P/SEF：砜类 · SGT-P：低双酚砜类。\nWT-L：合成鞣剂 · ST-20：弱阳离子替代型。"
+          },
+          {
+            "title": "复鞣剂 / 单宁与复合",
+            "text": "ASN：酚磺酸 · ARS：两性合成 · FOC：耐光合成 · SYS：丰满合成 · PHE：白单宁 · HKA：复合复鞣。"
+          },
+          {
+            "title": "复鞣剂 / 中和与分散",
+            "text": "NSK/NSE：强缓冲中和单宁 · NSA：强缓冲中和剂 · NSG：高缓冲中和剂 · S-M：分散单宁。"
+          },
+          {
+            "title": "复鞣剂 / 丙烯酸与聚合物",
+            "text": "RST/M-112/APS/M-101：丰满 · SR/M-113/M-303/APB：填充 · ARA/ART：两性 · RM20/RAP：小分子 · RM40：丰满复鞣 · RW：选择填充（以上丙烯酸系）。\nLP：聚合物复鞣 · NHK：促进吸收 · AMR：丙烯酸聚合物。"
+          },
+          {
+            "title": "复鞣剂 / 马来酸酐与特殊聚合物",
+            "text": "HPS-N/HNS：马来酸酐加丙烯酸 · DST/DRA：马来酸酐。\nRPS：合成柔软 · RG-10/RG-30：生物基 · SQ/SC：提高撕裂 · RD：高分子分散。"
+          },
+          {
+            "title": "复鞣剂 / 氨基树脂",
+            "text": "A-15-N：两性双氰胺 · MAR：三聚氰胺 · CLF：低甲醛氨基。\nA-30/A360/A-40/NFR/AFR：氨基树脂复鞣 · ZME/ZME-P：两性氨基。"
+          },
+          {
+            "title": "复鞣剂 / 蛋白填料",
+            "text": "EB/FB/BRC/GFB：蛋白填料 · PC：改性胶原蛋白 · SF：柔软性蛋白填料。"
+          },
+          {
+            "title": "加脂剂",
+            "text": "UH/UHX：通用软革 · MLS/QFS/FOA：通用 · FS/FS-A/SO/POS：软革 · UM：柔软合成 · FC：家具及柔软轻质革。\nSL/FL-1：轻飘 · USF：超软 · Q93：服装及纳帕专用超软。\nDPF/DPS：聚合物 · QL/MQ/QL-M：卵磷脂。\nSK70：耐光合成油脂 · SNS：耐光合成加脂 · LQ-5/QA-1：高乳化力。\nLB-N/LS30：羊毛脂 · PM-S/OFS：自乳化合成牛蹄油。\nSNO：天然油 · EF-S：阳离子 · USN：提高撕裂 · REM：润湿性。\nWP1/WP-H：防水。"
+          },
+          {
+            "title": "复鞣染色助剂",
+            "text": "AU：中和增艳复鞣 · MET：复鞣助剂 · OFA：阳离子有机固色。\nFUL：匀染 · SHN：油脂分散兼加脂稳定 · SNI：油脂分散。\nOT1：抗氧化 · DCR：去六价铬 · FK：去甲醛 · ROP/ROW：去异味。"
+          }
+        ],
+        "note": "易混点 · M-101 和 M-112 记丰满，M-113 和 M-303 记填充。NSK 和 NSE 是中和单宁，NSA 和 NSG 是中和剂。PHE 是白单宁。"
+      },
+      {
+        "title": "涂饰材料",
+        "image": "catalog-202609-3.webp",
+        "width": 2222,
+        "height": 1571,
+        "count": 68,
+        "branches": [
+          {
+            "title": "丙烯酸树脂",
+            "text": "DA3105/DA3116/DA316T：丙烯酸树脂 · DA3115：封里 · DA3198：特殊丙烯酸。\nDA3120：柔软 · DA3125：软 · DA3135：中软 · DA3150：中软而坚韧。"
+          },
+          {
+            "title": "聚氨酯树脂 / DU树脂",
+            "text": "DU3218/DU3219/DU3233/DU3291：聚氨酯 · DU3250/DU325P：接着 · DU326F：非离子聚氨酯。"
+          },
+          {
+            "title": "聚氨酯树脂 / TU顶饰",
+            "text": "TU4235/TU4236/TU4248：消光 · TU4250-N：亮光 · TU4255/TU4255-H：自然光。\nTU4265：漆皮聚氨酯顶光 · TU4272：摔亮顶 · TU4278：仿磨砂。"
+          },
+          {
+            "title": "综合树脂",
+            "text": "DC3309：面浆 · DC3311/DC3333：通用 · DC3380：预底涂。\nDC3315：耐黄变 · DC3320：绵泡柔软 · DC3344：高物性 · DC3355：耐切高性能 · DC3366：肤感。"
+          },
+          {
+            "title": "填料",
+            "text": "AW5108：离板蜡 · AW5123：强力离板蜡 · AW51S：柔软助剂 · AF5225：消光填料。"
+          },
+          {
+            "title": "油蜡",
+            "text": "CW8025：复合油蜡 · CW8180：油蜡。\nCW8312/CW8313/CW8315/CW8316/CW8317/CW8318/CW8323：油蜡混合物。\nCW8516：油性固体变色 · CO6215：底涂变色 · CO8234：软化 · CF6320：回软。"
+          },
+          {
+            "title": "补伤膏",
+            "text": "AS5331：抛光 · AS5332/AS53M：辊补 · AS5336-N：刮补。"
+          },
+          {
+            "title": "助剂",
+            "text": "CP6310：渗透 · CP-XY/CP-XP：非离子渗透 · ACC：涂层清洗。\nPR1618/PR1620：封底 · ROL：去异味。"
+          },
+          {
+            "title": "手感剂",
+            "text": "CH6101：手感 · CH6122：涂饰油。"
+          },
+          {
+            "title": "染料水",
+            "text": "BLACK AB/BLACK AR：染料水。"
+          },
+          {
+            "title": "颜料膏",
+            "text": "D Pigments/M Pigments：无酪素颜料膏。"
+          }
+        ],
+        "note": "易混点 · DU3250 和 DU325P 记接着，TU4250-N 记亮光。DC3333 通用，DC3344 高物性，DC3355 耐切，DC3366 肤感。"
+      }
+    ]
+  }
+]

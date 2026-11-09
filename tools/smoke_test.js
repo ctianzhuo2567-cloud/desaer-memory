@@ -25,6 +25,46 @@ function assert(cond, msg) {
   });
 
   await page.goto(pathToFileURL(path.resolve(html)).href, { waitUntil: "load" });
+  await page.click('[data-tab="materials"]');
+  const materialCount = await page.evaluate(() => MATERIALS.length);
+  assert(await page.isVisible("#view-materials"), "底部入口应打开学习资料");
+  assert(await page.isVisible("#materialsEmpty") === (materialCount === 0), "空目录应显示待添加提示");
+  const quickMap = page.getByRole("button", { name:/德赛尔产品目录.*三页速记/ });
+  await quickMap.click();
+  await page.waitForFunction(() => document.querySelector(".map-canvas img")?.naturalWidth > 0);
+  assert(await page.isVisible("#view-material") && await page.locator(".map-pages button").count() === 3, "资料应打开三页图谱");
+  assert(await page.isVisible(".map-canvas img"), "宽屏应显示原图");
+  const desktopViewport = page.viewportSize();
+  await page.setViewportSize({width:320, height:740});
+  assert(await page.locator(".map-viewer").evaluate(el => el.clientWidth > el.clientHeight && getComputedStyle(el).transform !== "none"), "竖握手机应打开横屏图谱");
+  for(const stage of ["水场基础","复鞣与染整","涂饰材料"]){
+    await page.getByRole("button", {name:stage, exact:true}).click();
+    assert(await page.locator(".map-canvas img").getAttribute("alt") === stage + "思维导图", "切换工段应显示对应原图");
+  }
+  const mapTransform = () => page.locator(".map-canvas img").evaluate(el => {
+    const matrix = new DOMMatrixReadOnly(getComputedStyle(el).transform);
+    return {scale:matrix.a, left:matrix.e};
+  });
+  const fitted = await mapTransform();
+  for(let i = 0; i < 3; i++) await page.getByRole("button", {name:"放大", exact:true}).click();
+  const enlarged = await mapTransform();
+  assert(enlarged.scale > fitted.scale, "放大应改变图谱比例");
+  await page.locator(".map-canvas").press("ArrowRight");
+  assert((await mapTransform()).left < enlarged.left, "放大后应能水平平移");
+  await page.getByRole("button", {name:"全图", exact:true}).click();
+  assert((await mapTransform()).scale === fitted.scale, "全图应回到初始比例");
+  assert(await page.locator("#materialBody input").count() === 0, "速记图谱阅读页只提供工段浏览");
+  await page.locator(".map-close").click();
+  await page.waitForSelector("#view-materials");
+  await page.setViewportSize(desktopViewport);
+  await quickMap.click();
+  await page.click("#btnMaterialBack");
+  await page.waitForSelector("#view-materials");
+  await quickMap.click();
+  await page.click('[data-tab="home"]');
+  await page.waitForSelector("#view-home");
+  assert(await page.evaluate(() => navDepth === 0 && history.state.view === "home"), "从资料详情切回学习应退出资料返回层");
+
   const eligibleCount = await page.evaluate(() => PRODUCTS.filter(p => !p.retired).length);
   assert((await page.textContent("#stPending")) === String(eligibleCount), "待学习初始应只包含未淘汰产品");
   assert((await page.textContent("#stNew")) === "20", "新卡默认 20");

@@ -51,12 +51,56 @@
   }
   .tabbar button{
     position:relative;
-    flex:1;border:0;background:none;padding:8px 0 7px;color:var(--sub);font-size:11px;
+    flex:1;min-width:0;border:0;background:none;padding:8px 0 7px;color:var(--sub);font-size:11px;white-space:nowrap;
     display:flex;flex-direction:column;align-items:center;gap:3px;font-family:inherit;cursor:pointer;
   }
   .tabbar button .ico{width:46px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:10px;font-size:20px;line-height:1;transition:background .15s ease,transform .15s ease}
   .tabbar button.active{color:var(--brand);font-weight:600}
   .tabbar button.active .ico{background:var(--brand-soft);animation:tabPop .18s ease}
+  #view-material,#view-materials{--material-ink:#24594f;--material-soft:#eef5f1}
+  .card.material-cover{border-inline-start:4px solid var(--material-ink)}
+  .material-cover h2,.material-section h2,.material-empty h3{margin:0;color:var(--ink);overflow-wrap:anywhere}
+  .material-cover h2{font-size:24px;line-height:1.35}
+  .material-cover p,.material-empty p{margin:7px 0 0;color:var(--sub);overflow-wrap:anywhere}
+  .card.material-empty{margin-top:12px;background:var(--material-soft)}
+  .material-empty h3{font-size:16px;color:var(--material-ink)}
+  .material-list{display:grid;gap:10px;margin-top:12px}
+  .material-list .card + .card{margin-top:0}
+  .material-entry{display:flex;align-items:center;gap:12px;width:100%;text-align:left;color:var(--ink);font:inherit;cursor:pointer}
+  .material-entry .main{flex:1;min-width:0;overflow-wrap:anywhere}
+  .material-entry .t,.material-entry .s{display:block}
+  .material-entry .t{font-weight:700}
+  .material-entry .s{color:var(--sub);font-size:13px}
+  .material-section{margin-top:12px}
+  .material-section h2{font-size:18px}
+  .material-section p{margin:10px 0;white-space:pre-line;overflow-wrap:anywhere}
+  .map-viewer{--map-accent:#326e79;--map-line:#d6e1df;--map-mat:#edf0eb;position:relative;display:flex;flex-direction:column;margin-top:12px;border:1px solid var(--map-line);border-radius:12px;background:var(--map-mat);overflow:hidden}
+  .map-viewer[data-stage="1"]{--map-accent:#795d51;--map-line:#e3d8d1}
+  .map-viewer[data-stage="2"]{--map-accent:#626b89;--map-line:#d9dce6}
+  .map-toolbar,.map-pages,.map-controls{display:flex;align-items:center;gap:6px}
+  .map-toolbar{flex:0 0 auto;flex-wrap:wrap;justify-content:space-between;padding:7px 9px;border-bottom:1px solid var(--map-line);background:#fffdfa}
+  .map-toolbar .btn{min-height:42px;padding:6px 9px;white-space:nowrap;touch-action:manipulation;transition:none}
+  .map-pages{flex-wrap:wrap}
+  .map-pages [aria-pressed="true"]{background:var(--map-accent);border-color:var(--map-accent);color:#fff}
+  .map-controls .map-step{min-width:42px;font-size:20px}
+  .map-toolbar .map-close{display:none}
+  .map-canvas{position:relative;height:clamp(300px,62vh,640px);min-height:0;overflow:hidden;touch-action:none;user-select:none;cursor:grab}
+  .map-canvas:active{cursor:grabbing}
+  .map-canvas img{position:absolute;top:0;left:0;display:block;max-width:none;transform-origin:0 0;pointer-events:none}
+  .map-transcript{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+  .map-viewer:fullscreen{margin:0;border:0;border-radius:0}
+  .map-viewer:fullscreen .map-canvas{flex:1;height:auto}
+  .map-viewer:fullscreen .map-close{display:inline-flex}
+  @media (max-width:760px), (pointer:coarse) and (max-width:950px){
+    body.map-reading{overflow:hidden}
+    .map-viewer{position:fixed;inset:0;z-index:60;margin:0;border:0;border-radius:0;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+    .map-canvas{flex:1;height:auto}
+    .map-toolbar .map-close{display:inline-flex}
+  }
+  @media (max-width:760px) and (orientation:portrait), (pointer:coarse) and (max-width:950px) and (orientation:portrait){
+    .map-viewer{inset:auto;top:50%;left:50%;width:100vh;height:100vw;top:50dvh;left:50dvw;width:100dvh;height:100dvw;transform:translate(-50%,-50%) rotate(90deg);padding:env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left) env(safe-area-inset-top)}
+  }
+  .tabbar button:focus-visible,.material-entry:focus-visible,.map-viewer :focus-visible{outline:2px solid var(--brand);outline-offset:-2px}
   @keyframes tabPop{from{transform:scale(.9)}to{transform:scale(1)}}
   .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px}
   .card + .card{margin-top:12px}
@@ -355,6 +399,23 @@
       </div>
     </section>
 
+    <section id="view-materials" class="view hidden">
+      <header class="card material-cover">
+        <h2>技术讲义与工艺笔记</h2>
+        <p>打开图谱和讲义，按工段浏览资料。</p>
+      </header>
+      <div id="materialsEmpty" class="card material-empty hidden">
+        <h3>资料待添加</h3>
+        <p>整理好的培训讲义和工艺笔记会显示在这里。</p>
+      </div>
+      <div id="materialsList" class="material-list"></div>
+    </section>
+
+    <section id="view-material" class="view hidden">
+      <button class="btn ghost" type="button" id="btnMaterialBack">‹ 返回学习资料</button>
+      <article id="materialBody"></article>
+    </section>
+
     <!-- 我的 -->
     <section id="view-me" class="view hidden">
       <div class="sec-title">学习设置</div>
@@ -411,6 +472,7 @@
     <button data-tab="home" class="active"><span class="ico">🎓</span>学习</button>
     <button data-tab="library"><span class="ico">🗂️</span>产品库</button>
     <button data-tab="projects"><span class="ico">📋</span>专项</button>
+    <button data-tab="materials"><span class="ico" aria-hidden="true">📚</span>学习资料</button>
     <button data-tab="me"><span class="ico">⚙️</span>我的</button>
   </nav>
 
@@ -491,6 +553,7 @@
 <script>
 "use strict";
 let PRODUCTS = /*__PRODUCTS__*/ null;
+const MATERIALS = /*__MATERIALS__*/ [];
 if(!Array.isArray(PRODUCTS)) PRODUCTS = [];
 const APP_VERSION = "/*__VERSION__*/";
 const BUILD_DATE = "/*__BUILD_DATE__*/";
@@ -1749,20 +1812,251 @@ function confirmPick(){
   }
 }
 
+/* ---------- 学习资料 ---------- */
+function renderMaterials(){
+  const list = $("#materialsList");
+  list.replaceChildren();
+  $("#materialsEmpty").classList.toggle("hidden", MATERIALS.length > 0);
+  for(const material of MATERIALS){
+    const entry = el("button", {class:"card material-entry", type:"button"});
+    const text = el("span", {class:"main"});
+    text.appendChild(el("span", {class:"t"}, material.title));
+    if(material.summary) text.appendChild(el("span", {class:"s"}, material.summary));
+    const format = material.maps ? material.maps.length + " 页思维导图" : material.sections.length + " 个章节";
+    text.appendChild(el("span", {class:"s"}, format));
+    entry.append(text, el("span", {class:"chev", "aria-hidden":"true"}, "›"));
+    entry.addEventListener("click", () => openMaterial(material.id));
+    list.appendChild(entry);
+  }
+}
+let mapReader = null;
+const MAP_MOBILE = "(max-width:760px), (pointer:coarse) and (max-width:950px)";
+function openMaterial(id){
+  navTop = {view:"material", materialId:id};
+  navDepth++;
+  history.pushState(navTop, "");
+  renderView("material");
+  if(mapReader && matchMedia(MAP_MOBILE).matches){
+    mapReader.viewer.querySelector(".map-close").focus({preventScroll:true});
+    enterMapLandscape(mapReader.viewer);
+  }else{
+    $("#materialTitle")?.focus({preventScroll:true});
+  }
+}
+async function enterMapLandscape(viewer){
+  if(!document.fullscreenEnabled || !viewer.requestFullscreen || !screen.orientation?.lock) return;
+  try{
+    await viewer.requestFullscreen();
+    if(mapReader?.viewer === viewer) await screen.orientation.lock("landscape");
+    else if(document.fullscreenElement === viewer) await document.exitFullscreen();
+  }catch{
+    // 部分浏览器支持全屏但不允许锁定方向。退出竖屏全屏后由页面横排图谱。
+    if(document.fullscreenElement === viewer && matchMedia("(orientation:portrait)").matches){
+      await document.exitFullscreen().catch(() => {});
+    }
+  }
+}
+function releaseMapReader(){
+  if(!mapReader) return;
+  const {viewer, observer} = mapReader;
+  mapReader = null;
+  observer.disconnect();
+  document.body.classList.remove("map-reading");
+  if(document.fullscreenElement === viewer) document.exitFullscreen().catch(() => {});
+}
+function renderMaterialMap(pages){
+  const viewer = el("section", {class:"map-viewer", "aria-label":"产品速记图谱"});
+  const toolbar = el("div", {class:"map-toolbar"});
+  const close = el("button", {class:"btn sm map-close", type:"button"}, "‹ 返回");
+  const tabs = el("div", {class:"map-pages", role:"group", "aria-label":"切换工段"});
+  const controls = el("div", {class:"map-controls", role:"group", "aria-label":"图谱缩放"});
+  const zoomOut = el("button", {class:"btn sm map-step", type:"button", "aria-label":"缩小"}, "−");
+  const reset = el("button", {class:"btn sm", type:"button"}, "全图");
+  const zoomIn = el("button", {class:"btn sm map-step", type:"button", "aria-label":"放大"}, "+");
+  const canvas = el("div", {class:"map-canvas", tabindex:"0", role:"region", "aria-label":"双指缩放，拖动查看图谱"});
+  const picture = el("img", {draggable:"false"});
+  const transcript = el("div", {class:"map-transcript"});
+  controls.append(zoomOut, reset, zoomIn);
+  toolbar.append(close, tabs, controls);
+  canvas.appendChild(picture);
+  viewer.append(toolbar, canvas, transcript);
+  close.addEventListener("click", () => history.back());
+  let toolbarTap = null;
+  toolbar.addEventListener("touchstart", event => {
+    const button = event.target.closest("button");
+    toolbarTap = button && event.touches.length === 1 ? {button, point:event.changedTouches[0]} : null;
+  }, {passive:true});
+  toolbar.addEventListener("touchend", event => {
+    const tap = toolbarTap;
+    toolbarTap = null;
+    const point = event.changedTouches[0];
+    if(!tap || !event.cancelable || event.touches.length || tap.button.disabled || point.identifier !== tap.point.identifier) return;
+    if(Math.hypot(point.clientX - tap.point.clientX, point.clientY - tap.point.clientY) > 12) return;
+    if(!tap.button.contains(document.elementFromPoint(point.clientX, point.clientY))) return;
+    // 缩放或拖动后，部分浏览器会抑制下一次触屏 click。
+    event.preventDefault();
+    tap.button.click();
+  }, {passive:false});
+  toolbar.addEventListener("touchcancel", () => { toolbarTap = null; });
+
+  const maxZoom = 6;
+  let currentPage = pages[0];
+  let zoom = 1;
+  let left = 0;
+  let top = 0;
+  const pointers = new Map();
+
+  function keepInView(offset, available, size){
+    return size <= available ? (available - size) / 2 : Math.max(available - size, Math.min(0, offset));
+  }
+  function paint(){
+    const {clientWidth:width, clientHeight:height} = canvas;
+    const scale = zoom * Math.min(width / currentPage.width, height / currentPage.height);
+    left = keepInView(left, width, currentPage.width * scale);
+    top = keepInView(top, height, currentPage.height * scale);
+    picture.style.transform = "translate(" + left + "px," + top + "px) scale(" + scale + ")";
+    zoomOut.disabled = reset.disabled = zoom === 1;
+    zoomIn.disabled = zoom === maxZoom;
+  }
+  function fit(){
+    pointers.clear();
+    zoom = 1;
+    paint();
+  }
+  function zoomAt(next, from = {x:canvas.clientWidth / 2, y:canvas.clientHeight / 2}, to = from){
+    next = Math.max(1, Math.min(maxZoom, next));
+    const ratio = next / zoom;
+    left = to.x - (from.x - left) * ratio;
+    top = to.y - (from.y - top) * ratio;
+    zoom = next;
+    paint();
+  }
+  function pointerPosition(event){
+    const rect = canvas.getBoundingClientRect();
+    if(getComputedStyle(viewer).transform !== "none"){
+      // 竖握时容器顺时针旋转 90 度，将屏幕触点换算回图谱坐标。
+      return {x:event.clientY - rect.top, y:rect.right - event.clientX};
+    }
+    return {x:event.clientX - rect.left, y:event.clientY - rect.top};
+  }
+  function gesture(){
+    const [first, second] = pointers.values();
+    if(!second) return {...first, distance:0};
+    return {
+      x:(first.x + second.x) / 2,
+      y:(first.y + second.y) / 2,
+      distance:Math.max(1, Math.hypot(first.x - second.x, first.y - second.y))
+    };
+  }
+  canvas.addEventListener("pointerdown", event => {
+    if(event.button !== 0 || pointers.size >= 2) return;
+    pointers.set(event.pointerId, pointerPosition(event));
+    canvas.setPointerCapture(event.pointerId);
+  });
+  canvas.addEventListener("pointermove", event => {
+    if(!pointers.has(event.pointerId)) return;
+    const before = gesture();
+    pointers.set(event.pointerId, pointerPosition(event));
+    const after = gesture();
+    zoomAt(before.distance ? zoom * after.distance / before.distance : zoom, before, after);
+  });
+  for(const type of ["pointerup", "pointercancel", "lostpointercapture"]){
+    canvas.addEventListener(type, event => pointers.delete(event.pointerId));
+  }
+  canvas.addEventListener("keydown", event => {
+    const steps = {ArrowLeft:[40,0], ArrowRight:[-40,0], ArrowUp:[0,40], ArrowDown:[0,-40]};
+    if(event.key in steps){
+      const [dx,dy] = steps[event.key];
+      left += dx;
+      top += dy;
+      paint();
+    }else if(event.key === "+" || event.key === "=") zoomAt(zoom * 1.4);
+    else if(event.key === "-") zoomAt(zoom / 1.4);
+    else if(event.key === "0") fit();
+    else return;
+    event.preventDefault();
+  });
+  zoomOut.addEventListener("click", () => zoomAt(zoom / 1.4));
+  reset.addEventListener("click", fit);
+  zoomIn.addEventListener("click", () => zoomAt(zoom * 1.4));
+
+  const pageButtons = pages.map((page, index) => {
+    const button = el("button", {class:"btn sm", type:"button"}, page.title);
+    button.addEventListener("click", () => showPage(index));
+    tabs.appendChild(button);
+    return button;
+  });
+  function showPage(index){
+    currentPage = pages[index];
+    viewer.dataset.stage = index;
+    pageButtons.forEach((button, i) => button.setAttribute("aria-pressed", String(i === index)));
+    picture.alt = currentPage.title + "思维导图";
+    picture.width = currentPage.width;
+    picture.height = currentPage.height;
+    picture.src = currentPage.image;
+    const transcriptTitle = currentPage.title + (currentPage.count ? " · " + currentPage.count + " 个型号" : "");
+    transcript.replaceChildren(el("h2", null, transcriptTitle));
+    for(const branch of currentPage.branches || []){
+      transcript.append(el("h3", null, branch.title), el("p", null, branch.text));
+    }
+    if(currentPage.note) transcript.appendChild(el("p", null, currentPage.note));
+    fit();
+  }
+  showPage(0);
+  const observer = new ResizeObserver(fit);
+  observer.observe(canvas);
+  mapReader = {viewer, observer};
+  document.body.classList.add("map-reading");
+  return viewer;
+}
+function renderMaterial(){
+  const body = $("#materialBody");
+  body.replaceChildren();
+  const material = MATERIALS.find(item => item.id === navTop.materialId);
+  if(!material){
+    body.appendChild(el("p", {class:"card"}, "这份资料已下架，请返回资料目录。"));
+    return;
+  }
+  const header = el("header", {class:"card material-cover"});
+  header.appendChild(el("h2", {id:"materialTitle", tabindex:"-1"}, material.title));
+  if(material.summary) header.appendChild(el("p", null, material.summary));
+  body.appendChild(header);
+  if(material.maps){
+    body.appendChild(renderMaterialMap(material.maps));
+    return;
+  }
+  for(const chapter of material.sections){
+    const section = el("section", {class:"card material-section"});
+    section.appendChild(el("h2", null, chapter.title));
+    for(const paragraph of chapter.paragraphs) section.appendChild(el("p", null, paragraph));
+    body.appendChild(section);
+  }
+}
+
 /* ---------- 视图 ---------- */
 let navTop = { view: "home" };
 let pendingTabSwitch = null;
 let navDepth = 0; // 基础层之上还压了几层（详情 / 错题本 / 学习 / 答题）
-const MAIN_TABS = ["home", "library", "projects", "me"];
+const MAIN_TABS = ["home", "library", "projects", "materials", "me"];
 function renderView(view){
+  releaseMapReader();
   $$(".view").forEach(v => v.classList.add("hidden"));
   $("#view-" + view).classList.remove("hidden");
-  $$(".tabbar button").forEach(b => b.classList.toggle("active", b.dataset.tab === view));
-  const titles = {home:"百品记", library:"产品库", projects:"专项学习", project:"专项项目", score:"答题详情", wrong:"错题本", me:"我的", detail:"产品详情"};
+  const activeTab = view === "material" ? "materials" : view;
+  $$(".tabbar button").forEach(b => {
+    const active = b.dataset.tab === activeTab;
+    b.classList.toggle("active", active);
+    if(active) b.setAttribute("aria-current", "page");
+    else b.removeAttribute("aria-current");
+  });
+  const titles = {home:"百品记", library:"产品库", projects:"专项学习", project:"专项项目", score:"答题详情", wrong:"错题本", materials:"学习资料", material:"资料阅读", me:"我的", detail:"产品详情"};
   $("#appTitle").textContent = titles[view] || "百品记";
+  $("#appSub").textContent = activeTab === "materials" ? "百品记 · 资料目录" : "百品记 · " + PRODUCTS.length + " 个产品";
   if(view === "home") refreshHome();
   if(view === "library") refreshLibrary();
   if(view === "projects") renderProjects();
+  if(view === "materials") renderMaterials();
+  if(view === "material") renderMaterial();
   if(view === "project") renderProject();
   if(view === "score") renderScoreDetail();
   if(view === "wrong") refreshWrong();
@@ -2179,6 +2473,7 @@ $("#studyOverlay").addEventListener("click", e => {
 });
 $$(".rate-btn").forEach(b => b.addEventListener("click", () => applyRate(b.dataset.rate)));
 $("#btnBack").addEventListener("click", () => history.back());
+$("#btnMaterialBack").addEventListener("click", () => history.back());
 $("#btnProjectBack").addEventListener("click", () => history.back());
 $("#btnScoreBack").addEventListener("click", () => history.back());
 $("#btnNewProject").addEventListener("click", () => openPicker("new"));
@@ -2275,7 +2570,6 @@ if(state.meta.learningScheme !== 4){ state.meta.learningScheme = 4; saveState();
 $("#appVersion").textContent = APP_VERSION + " · " + BUILD_DATE;
 $("#quickDailyNew").value = String(planOf("quick").meta.dailyNew || 20);
 $("#deepDailyNew").value = String(planOf("deep").meta.dailyNew || 5);
-$("#appSub").textContent = "百品记 · " + PRODUCTS.length + " 个产品";
 if(!PRODUCTS.length){
   $("#dataWarning").style.display = "";
   $("#btnStart").disabled = true;
