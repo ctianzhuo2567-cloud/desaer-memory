@@ -1822,7 +1822,7 @@ function renderMaterials(){
     const text = el("span", {class:"main"});
     text.appendChild(el("span", {class:"t"}, material.title));
     if(material.summary) text.appendChild(el("span", {class:"s"}, material.summary));
-    const format = material.maps ? material.maps.length + " 页思维导图" : material.sections.length + " 个章节";
+    const format = material.maps ? material.maps.length + " 页" + (material.mapKind || "思维导图") : material.sections.length + " 个章节";
     text.appendChild(el("span", {class:"s"}, format));
     entry.append(text, el("span", {class:"chev", "aria-hidden":"true"}, "›"));
     entry.addEventListener("click", () => openMaterial(material.id));
@@ -1865,7 +1865,7 @@ function releaseMapReader(){
   if(document.fullscreenElement === viewer) document.exitFullscreen().catch(() => {});
 }
 function renderMaterialMap(pages){
-  const viewer = el("section", {class:"map-viewer", "aria-label":"产品速记图谱"});
+  const viewer = el("section", {class:"map-viewer", "aria-label":"资料图谱"});
   const toolbar = el("div", {class:"map-toolbar"});
   const close = el("button", {class:"btn sm map-close", type:"button"}, "‹ 返回");
   const tabs = el("div", {class:"map-pages", role:"group", "aria-label":"切换工段"});
@@ -1990,11 +1990,11 @@ function renderMaterialMap(pages){
     currentPage = pages[index];
     viewer.dataset.stage = index;
     pageButtons.forEach((button, i) => button.setAttribute("aria-pressed", String(i === index)));
-    picture.alt = currentPage.title + "思维导图";
+    picture.alt = currentPage.title + (currentPage.flow ? "流程图" : "思维导图");
     picture.width = currentPage.width;
     picture.height = currentPage.height;
     picture.src = currentPage.image;
-    const transcriptTitle = currentPage.title + (currentPage.count ? " · " + currentPage.count + " 个型号" : "");
+    const transcriptTitle = currentPage.title + (currentPage.count ? " · " + currentPage.count + " " + (currentPage.countUnit || "个型号") : "");
     transcript.replaceChildren(el("h2", null, transcriptTitle));
     for(const branch of currentPage.branches || []){
       transcript.append(el("h3", null, branch.title), el("p", null, branch.text));

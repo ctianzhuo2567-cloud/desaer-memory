@@ -147,5 +147,73 @@
         "note": "易混点 · DU3250 和 DU325P 记接着，TU4250-N 记亮光。DC3333 通用，DC3344 高物性，DC3355 耐切，DC3366 肤感。"
       }
     ]
+  },
+  {
+    "id": "leather-process-knowledge",
+    "title": "制革工序知识",
+    "summary": "准备、复鞣、涂饰 · 30 道工序及关键参数。各工序主要材料与用量后续补充。",
+    "mapKind": "流程图",
+    "maps": [
+      {
+        "title": "准备工段",
+        "sourcePage": 4,
+        "flow": {
+          "columns": 5,
+          "steps": [
+            {"id": "pre-soak", "title": "预浸水、脱脂", "parameters": [["pH", "7.5±1"], ["T", "24℃±1"], ["Bé", "9–10"]], "materials": []},
+            {"id": "first-fleshing", "title": "去肉", "materials": []},
+            {"id": "main-soak", "title": "主浸水、脱脂", "parameters": [["pH", "9.2±0.2"], ["T", "24℃±1"], ["Bé", "3±0.2"]], "materials": []},
+            {"id": "liming", "title": "浸灰", "parameters": [["T", "22℃±1"], ["Bé", "1.5±0.2"]], "materials": []},
+            {"id": "second-fleshing", "title": "去肉", "materials": []},
+            {"id": "splitting", "title": "片皮", "materials": []},
+            {"id": "pre-deliming", "title": "预脱灰", "parameters": [["T", "29℃±1"]], "materials": []},
+            {"id": "main-deliming", "title": "主脱灰、脱脂", "parameters": [["pH", "8.5±0.2"], ["T", "30℃±1"]], "materials": []},
+            {"id": "bating", "title": "软化", "parameters": [["pH", "8.5±0.2"], ["T", "30℃±1"]], "materials": []},
+            {"id": "washing", "title": "水洗", "materials": []},
+            {"id": "pickling", "title": "浸酸", "parameters": [["pH", "2.7–3.0"], ["Bé", "7.5±0.2"]], "instructions": ["硫酸：1∶10 冷水化开，冷凉后分次加入。"], "materials": []},
+            {"id": "tanning", "title": "鞣制", "materials": []},
+            {"id": "basification", "title": "防霉、提碱", "parameters": [["pH", "3.6–3.8"], ["T", "38℃±1"]], "materials": []},
+            {"id": "resting", "title": "出鼓陈放", "materials": []}
+          ],
+          "notes": ["pH · 酸碱值    T · 温度    Bé · 波美度", "学习要求 · 掌握各个工序主要材料的常规用量（%）。"]
+        }
+      },
+      {
+        "title": "复鞣工段",
+        "sourcePage": 8,
+        "flow": {
+          "columns": 3,
+          "steps": [
+            {"id": "wetting-back", "title": "回软", "parameters": [["pH", "3.3±0.1"], ["T", "45℃±1"]], "materials": []},
+            {"id": "chrome-retanning", "title": "铬复鞣", "parameters": [["pH", "3.8–4.0"], ["T", "30–35℃"]], "materials": []},
+            {"id": "neutralization", "title": "中和", "parameters": [["pH", "5–5.5"], ["T", "30–35℃"]], "materials": []},
+            {"id": "filling", "title": "填充", "instructions": ["丙烯酸类复鞣剂：35℃ 温水 1∶3 化开，轴孔加入。"], "materials": []},
+            {"id": "fatliquoring", "title": "加脂", "parameters": [["T", "48–50℃"]], "instructions": ["油脂用 55℃ 热水 1∶3 乳化，轴孔加入。"], "materials": []},
+            {"id": "fixation", "title": "固定", "parameters": [["pH", "3.6±0.1"]], "instructions": ["甲酸 1∶10 冷水化开，分次加入。"], "materials": []}
+          ],
+          "notes": ["水洗 · 回软后、中和后。", "学习要求 · 掌握各个工序主要材料的常规用量（%）。"]
+        }
+      },
+      {
+        "title": "涂饰工段",
+        "sourcePage": 9,
+        "flow": {
+          "columns": 5,
+          "steps": [
+            {"id": "repair", "title": "补伤", "materials": []},
+            {"id": "buffing", "title": "磨革", "instructions": ["视情况二次补伤，再磨革。"], "materials": []},
+            {"id": "sealing", "title": "封底", "materials": []},
+            {"id": "base-coat", "title": "底浆", "parameters": [["辊涂", "8–12 g/sf"]], "materials": []},
+            {"id": "embossing", "title": "压花", "instructions": ["根据风格。"], "materials": []},
+            {"id": "milling", "title": "摔软", "instructions": ["根据风格控制时间、温度、湿度。"], "materials": []},
+            {"id": "toggling", "title": "绷板", "materials": []},
+            {"id": "color-coat", "title": "面浆", "materials": []},
+            {"id": "top-coat", "title": "顶光", "materials": []},
+            {"id": "staking", "title": "打软", "materials": []}
+          ],
+          "notes": ["学习要求 · 掌握各工序主要材料的常规用量（%）。"]
+        }
+      }
+    ]
   }
 ]

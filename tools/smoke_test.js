@@ -57,6 +57,46 @@ function assert(cond, msg) {
   await page.locator(".map-close").click();
   await page.waitForSelector("#view-materials");
   await page.setViewportSize(desktopViewport);
+  await page.getByRole("button", {name:/制革工序知识/}).click();
+  const expectedSteps = [
+    ["准备工段", "预浸水、脱脂|去肉|主浸水、脱脂|浸灰|去肉|片皮|预脱灰|主脱灰、脱脂|软化|水洗|浸酸|鞣制|防霉、提碱|出鼓陈放"],
+    ["复鞣工段", "回软|铬复鞣|中和|填充|加脂|固定"],
+    ["涂饰工段", "补伤|磨革|封底|底浆|压花|摔软|绷板|面浆|顶光|打软"]
+  ];
+  for(const [title, sequence] of expectedSteps){
+    await page.getByRole("button", {name:title, exact:true}).click();
+    await page.waitForFunction(() => document.querySelector(".map-canvas img")?.naturalWidth > 0);
+    const flow = await page.evaluate(title => {
+      const material = MATERIALS.find(item => item.id === "leather-process-knowledge");
+      const map = material.maps.find(item => item.title === title);
+      const svg = new DOMParser().parseFromString(atob(map.image.split(",")[1]), "image/svg+xml");
+      return {sequence:map.flow.steps.map(step => step.title).join("|"),
+        missingMaterials:map.flow.steps.every(step => step.materials.length === 0),
+        svgValid:svg.querySelector("svg") && !svg.querySelector("parsererror"),
+        count:map.count, transcript:document.querySelector(".map-transcript").textContent};
+    }, title);
+    assert(flow.sequence === sequence && flow.count === sequence.split("|").length, "工序顺序与数量应和原图一致");
+    assert(flow.svgValid && flow.missingMaterials, "流程图应生成有效矢量图，未提供的材料用量应留空");
+    assert(flow.transcript.includes("道工序") && !flow.transcript.includes("个型号"), "流程资料应使用工序计数");
+    assert(await page.locator(".map-canvas img").getAttribute("alt") === title + "流程图", "新资料切页应显示对应流程图");
+  }
+  const processFacts = await page.evaluate(() => {
+    const pages = MATERIALS.find(item => item.id === "leather-process-knowledge").maps;
+    return {ph:pages[0].flow.steps[0].parameters[0][1],
+      acid:pages[0].flow.steps[10].instructions[0],
+      fat:pages[1].flow.steps[4].instructions[0],
+      wash:pages[1].flow.notes[0],
+      roller:pages[2].flow.steps[3].parameters[0][1]};
+  });
+  assert(processFacts.ph === "7.5±1" && processFacts.acid.includes("1∶10 冷水化开，冷凉后分次加入") && processFacts.fat.includes("55℃ 热水 1∶3 乳化") && processFacts.wash.includes("回软后、中和后") && processFacts.roller === "8–12 g/sf", "原图参数、稀释说明、水洗位置和单位应保留");
+  await page.setViewportSize({width:390, height:844});
+  const flowFit = await mapTransform();
+  await page.getByRole("button", {name:"放大", exact:true}).click();
+  assert((await mapTransform()).scale > flowFit.scale, "流程资料应沿用手机缩放");
+  await page.locator(".map-close").click();
+  await page.waitForSelector("#view-materials");
+  assert(await page.evaluate(() => !document.body.classList.contains("map-reading")), "离开流程资料应恢复页面滚动");
+  await page.setViewportSize(desktopViewport);
   await quickMap.click();
   await page.click("#btnMaterialBack");
   await page.waitForSelector("#view-materials");

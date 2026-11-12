@@ -16,6 +16,8 @@ import os
 import shutil
 import sys
 
+from render_process_flow import render_process_flow
+
 
 def main():
     if len(sys.argv) != 4:
@@ -36,6 +38,9 @@ def main():
         raise SystemExit("materials.json 应为资料数组")
     for material in materials:
         for page in material.get("maps", []):
+            if "flow" in page:
+                page["image"] = "data:image/svg+xml;base64," + base64.b64encode(render_process_flow(page)).decode("ascii")
+                continue
             filename = page["image"]
             if filename != os.path.basename(filename) or not filename.endswith(".webp"):
                 raise SystemExit("图谱图片应为 data/materials 下的 WebP 文件名")
