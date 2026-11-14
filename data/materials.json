@@ -151,7 +151,7 @@
   {
     "id": "leather-process-knowledge",
     "title": "制革工序知识",
-    "summary": "准备、复鞣、涂饰 · 30 道工序及关键参数。各工序主要材料与用量后续补充。",
+    "summary": "准备、绵羊皮准备、复鞣、涂饰 · 按工段查看工序、参数和材料用量。",
     "mapKind": "流程图",
     "maps": [
       {
@@ -176,6 +176,323 @@
             {"id": "resting", "title": "出鼓陈放", "materials": []}
           ],
           "notes": ["pH · 酸碱值    T · 温度    Bé · 波美度", "学习要求 · 掌握各个工序主要材料的常规用量（%）。"]
+        }
+      },
+      {
+        "id": "sheepskin-preparation",
+        "title": "绵羊皮准备工段",
+        "sourcePage": 5,
+        "sourceTitle": "制革与涂饰_技术知识培训概览_流程细节修订版.pptx（用户补充，2026-11-14）",
+        "flow": {
+          "columns": 4,
+          "materialsNote": "材料百分比计量基准待确认。",
+          "steps": [
+            {
+              "id": "sheep-pre-soak",
+              "title": "预浸水、脱脂",
+              "duration": "10-17h",
+              "parameters": [
+                [
+                  "pH",
+                  "7.5±（偏差未填）"
+                ],
+                [
+                  "T",
+                  "24℃±（偏差未填）"
+                ],
+                [
+                  "Bé",
+                  "9–10"
+                ]
+              ],
+              "materials": [
+                {
+                  "name": "浸水剂",
+                  "dosage": "0.3%",
+                  "basis": "计量基准待确认"
+                },
+                {
+                  "name": "脱脂剂",
+                  "dosage": "0.5%",
+                  "basis": "计量基准待确认"
+                },
+                {
+                  "name": "杀菌剂",
+                  "dosage": "0.3%",
+                  "basis": "计量基准待确认"
+                }
+              ]
+            },
+            {
+              "id": "sheep-first-fleshing",
+              "title": "去肉",
+              "materials": []
+            },
+            {
+              "id": "sheep-main-soak",
+              "title": "主浸水",
+              "duration": "18-22h",
+              "parameters": [
+                [
+                  "pH",
+                  "9.2±0.2"
+                ],
+                [
+                  "T",
+                  "24℃±1"
+                ],
+                [
+                  "Bé",
+                  "3±0.2"
+                ]
+              ],
+              "materials": [
+                {
+                  "name": "浸水剂",
+                  "dosage": "0.3%",
+                  "basis": "计量基准待确认"
+                },
+                {
+                  "name": "脱脂剂",
+                  "dosage": "0.5%",
+                  "basis": "计量基准待确认"
+                },
+                {
+                  "name": "杀菌剂",
+                  "dosage": "0.3%",
+                  "basis": "计量基准待确认"
+                },
+                {
+                  "name": "纯碱",
+                  "dosage": "0.3-0.5%",
+                  "basis": "计量基准待确认"
+                }
+              ]
+            },
+            {
+              "id": "sheep-paint-dehairing",
+              "title": "包灰下毛",
+              "duration": "4h",
+              "parameters": [
+                [
+                  "高硫",
+                  "100 g/L（用于脊背处）"
+                ],
+                [
+                  "低碱",
+                  "30 g/L（用于其他区域）"
+                ],
+                [
+                  "Bé",
+                  "28±1"
+                ]
+              ],
+              "materials": []
+            },
+            {
+              "id": "sheep-liming",
+              "title": "浸灰",
+              "duration": "18-22h",
+              "parameters": [
+                [
+                  "T",
+                  "22℃±1"
+                ],
+                [
+                  "Bé",
+                  "1.5±0.2"
+                ]
+              ],
+              "materials": [
+                {
+                  "name": "浸灰剂",
+                  "dosage": "1%",
+                  "basis": "计量基准待确认"
+                },
+                {
+                  "name": "硫化碱",
+                  "dosage": "1-1.5%",
+                  "basis": "计量基准待确认"
+                },
+                {
+                  "name": "石灰",
+                  "dosage": "1.5%",
+                  "basis": "计量基准待确认"
+                }
+              ]
+            },
+            {
+              "id": "sheep-second-fleshing",
+              "title": "去肉",
+              "materials": []
+            },
+            {
+              "id": "sheep-pre-deliming",
+              "title": "预脱灰",
+              "duration": "1h",
+              "parameters": [
+                [
+                  "T",
+                  "29℃±1"
+                ],
+                [
+                  "pH",
+                  "9.5"
+                ]
+              ],
+              "materials": [
+                {
+                  "name": "硫铵",
+                  "dosage": "1%",
+                  "basis": "计量基准待确认"
+                }
+              ]
+            },
+            {
+              "id": "sheep-main-deliming",
+              "title": "主脱灰",
+              "duration": "1h",
+              "parameters": [
+                [
+                  "pH",
+                  "8.5±0.2"
+                ],
+                [
+                  "T",
+                  "30℃±1"
+                ]
+              ],
+              "materials": [
+                {
+                  "name": "硫铵",
+                  "dosage": "0.7%",
+                  "basis": "计量基准待确认"
+                },
+                {
+                  "name": "脱灰剂",
+                  "dosage": "1%",
+                  "basis": "计量基准待确认"
+                },
+                {
+                  "name": "脱脂剂",
+                  "dosage": "1%",
+                  "basis": "计量基准待确认"
+                }
+              ]
+            },
+            {
+              "id": "sheep-bating-degreasing",
+              "title": "软化脱脂",
+              "duration": "40min",
+              "parameters": [
+                [
+                  "pH",
+                  "8.5±2"
+                ],
+                [
+                  "T",
+                  "30℃±1"
+                ]
+              ],
+              "materials": [
+                {
+                  "name": "软化酶",
+                  "dosage": "0.5%",
+                  "basis": "计量基准待确认"
+                },
+                {
+                  "name": "脱脂剂",
+                  "dosage": "2%",
+                  "basis": "计量基准待确认"
+                }
+              ]
+            },
+            {
+              "id": "sheep-washing",
+              "title": "水洗",
+              "materials": []
+            },
+            {
+              "id": "sheep-pickling",
+              "title": "浸酸",
+              "duration": "2h",
+              "parameters": [
+                [
+                  "pH",
+                  "2.7–3.0"
+                ],
+                [
+                  "Bé",
+                  "7.5"
+                ]
+              ],
+              "instructions": [
+                "硫酸1∶10冷水化开，冷凉后分次加入。"
+              ],
+              "materials": [
+                {
+                  "name": "甲酸",
+                  "dosage": "0.5%",
+                  "basis": "计量基准待确认"
+                },
+                {
+                  "name": "硫酸",
+                  "dosage": "0.7%",
+                  "basis": "计量基准待确认"
+                },
+                {
+                  "name": "盐",
+                  "dosage": "8%",
+                  "basis": "计量基准待确认"
+                }
+              ]
+            },
+            {
+              "id": "sheep-tanning",
+              "title": "鞣制",
+              "duration": "15-16h",
+              "parameters": [
+                [
+                  "pH",
+                  "3.8–4.0"
+                ],
+                [
+                  "T",
+                  "32℃±1"
+                ],
+                [
+                  "转鼓内铬含量",
+                  "6.3 g/L"
+                ]
+              ],
+              "materials": [
+                {
+                  "name": "铬粉",
+                  "dosage": "7%",
+                  "basis": "计量基准待确认"
+                },
+                {
+                  "name": "甲酸钠",
+                  "dosage": "1%",
+                  "basis": "计量基准待确认"
+                },
+                {
+                  "name": "小苏打",
+                  "dosage": "1-1.5%",
+                  "basis": "计量基准待确认"
+                },
+                {
+                  "name": "防霉剂",
+                  "dosage": "0.3-0.5%",
+                  "basis": "计量基准待确认"
+                }
+              ]
+            }
+          ],
+          "notes": [
+            "按羊皮手稿记录保留；预浸水偏差值未填，软化脱脂pH沿用8.5±2。",
+            "pH · 酸碱值    T · 温度    Bé · 波美度"
+          ]
         }
       },
       {

@@ -24,7 +24,8 @@ def wrap(text, width, size=23):
 
 
 def step_lines(step):
-    lines = [(f"{label} {value}", True) for label, value in step.get("parameters", [])]
+    lines = [("时间 " + step["duration"], True)] if step.get("duration") else []
+    lines.extend((f"{label} {value}", True) for label, value in step.get("parameters", []))
     lines.extend((text, False) for text in step.get("instructions", []))
     for material in step.get("materials", []):
         parts = [material.get(key, "") for key in ("name", "dosage", "basis", "note")]
@@ -32,20 +33,46 @@ def step_lines(step):
     return lines
 
 
+def populate_flow_metadata(page):
+    """为流程图生成统一的工序文字记录。"""
+    flow = page["flow"]
+    steps = flow["steps"]
+    page["count"], page["countUnit"] = len(steps), "道工序"
+    page["branches"] = [{"title": f'{index + 1:02} {step["title"]}',
+                         "text": "\n".join(text for text, _ in step_lines(step))}
+                        for index, step in enumerate(steps)]
+    page["note"] = "\n".join(flow.get("notes", []) + [flow.get("materialsNote", "材料与用量 · 后续补充")])
+
+
+def display_lines(step, flow):
+    """共用待确认说明放在页脚，卡片内集中展示实际用量。"""
+    base = dict(step, materials=[])
+    lines = step_lines(base)
+    for material in step.get("materials", []):
+        parts = [material.get("name", ""), material.get("dosage", "")]
+        basis = material.get("basis", "")
+        if basis and basis not in flow.get("materialsNote", ""):
+            parts.append(basis)
+        if material.get("note"):
+            parts.append(material["note"])
+        lines.append((" ".join(part for part in parts if part), False))
+    return lines
+
+
 def render_process_flow(page):
     flow = page["flow"]
     steps, columns = flow["steps"], flow["columns"]
-    if not steps or columns not in (3, 5):
-        raise ValueError("流程图需要工序，列数应为 3 或 5")
+    if not steps or columns not in (3, 4, 5):
+        raise ValueError("流程图需要工序，列数应为 3、4 或 5")
     width, margin, gap = 1600, 48, 30
     cell_width = (width - margin * 2 - gap * (columns - 1)) / columns
-    wrapped = [[(line, accent) for text, accent in step_lines(step)
+    wrapped = [[(line, accent) for text, accent in display_lines(step, flow)
                 for line in wrap(text, cell_width - 40)] for step in steps]
     rows = math.ceil(len(steps) / columns)
     row_heights = [max(188, 91 + max(len(lines) for lines in wrapped[row * columns:(row + 1) * columns]) * 33)
                    for row in range(rows)]
     notes = [line for note in flow.get("notes", []) for line in wrap(note, width - 144, 23)]
-    notes.append("材料与用量 · 后续补充")
+    notes.append(flow.get("materialsNote", "材料与用量 · 后续补充"))
     note_y = 134 + sum(row_heights) + 48 * (rows - 1) + 24
     height = note_y + len(notes) * 34 + 96
     svg = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
@@ -65,11 +92,13 @@ def render_process_flow(page):
             positions.append((margin + column * (cell_width + gap), y, row_height))
         y += row_height + 48
     for index, (step, lines, (x, y, h)) in enumerate(zip(steps, wrapped, positions)):
+        svg.append(f'<g data-step-id="{escape(step["id"], quote=True)}">')
         svg.append(f'<rect x="{x}" y="{y}" width="{cell_width}" height="{h}" rx="18" fill="#eef6fa" stroke="#68b7ee" stroke-width="2"/>')
         svg.append(f'<text x="{x + 18}" y="{y + 39}" font-size="21" font-weight="700" class="param">{index + 1:02}</text>')
         svg.append(f'<text x="{x + 57}" y="{y + 41}" font-size="27" font-weight="700">{escape(step["title"])}</text>')
         for line_index, (line, accent) in enumerate(lines):
             svg.append(f'<text x="{x + 20}" y="{y + 88 + line_index * 33}" font-size="23" class="{"param" if accent else "instruction"}">{escape(line)}</text>')
+        svg.append('</g>')
         if index + 1 < len(steps):
             next_x, next_y, _ = positions[index + 1]
             start_x, start_y = x + cell_width, y + h / 2
@@ -82,11 +111,8 @@ def render_process_flow(page):
     svg.append(f'<rect x="48" y="{note_y}" width="1504" height="{len(notes) * 34 + 25}" rx="16" fill="#e8f6f3" stroke="#9bd4ca"/>')
     for index, note in enumerate(notes):
         svg.append(f'<text x="72" y="{note_y + 34 + index * 34}" font-size="23">{escape(note)}</text>')
-    svg.append(f'<text x="48" y="{height - 20}" font-size="18" fill="#62788d">资料来源 · 用户提供的 DECISION 制革基础知识培训图 · 原第 {page["sourcePage"]} 页</text></svg>')
+    source = page.get("sourceTitle", "用户提供的 DECISION 制革基础知识培训图")
+    svg.append(f'<text x="48" y="{height - 20}" font-size="18" fill="#62788d">资料来源 · {escape(source)} · 原第 {page["sourcePage"]} 页</text></svg>')
     page["width"], page["height"] = width, height
-    page["count"], page["countUnit"] = len(steps), "道工序"
-    page["branches"] = [{"title": f'{index + 1:02} {step["title"]}',
-                         "text": "\n".join(text for text, _ in step_lines(step))}
-                        for index, step in enumerate(steps)]
-    page["note"] = "\n".join(flow.get("notes", []) + ["材料与用量 · 后续补充"])
+    populate_flow_metadata(page)
     return "".join(svg).encode("utf-8")

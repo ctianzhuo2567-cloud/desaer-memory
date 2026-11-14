@@ -82,13 +82,39 @@ function assert(cond, msg) {
   }
   const processFacts = await page.evaluate(() => {
     const pages = MATERIALS.find(item => item.id === "leather-process-knowledge").maps;
-    return {ph:pages[0].flow.steps[0].parameters[0][1],
-      acid:pages[0].flow.steps[10].instructions[0],
-      fat:pages[1].flow.steps[4].instructions[0],
-      wash:pages[1].flow.notes[0],
-      roller:pages[2].flow.steps[3].parameters[0][1]};
+    const preparation=pages.find(map => map.title === "准备工段"), retanning=pages.find(map => map.title === "复鞣工段"), finishing=pages.find(map => map.title === "涂饰工段");
+    return {ph:preparation.flow.steps[0].parameters[0][1],
+      acid:preparation.flow.steps[10].instructions[0],
+      fat:retanning.flow.steps[4].instructions[0],
+      wash:retanning.flow.notes[0],
+      roller:finishing.flow.steps[3].parameters[0][1]};
   });
   assert(processFacts.ph === "7.5±1" && processFacts.acid.includes("1∶10 冷水化开，冷凉后分次加入") && processFacts.fat.includes("55℃ 热水 1∶3 乳化") && processFacts.wash.includes("回软后、中和后") && processFacts.roller === "8–12 g/sf", "原图参数、稀释说明、水洗位置和单位应保留");
+  await page.getByRole("button", {name:"绵羊皮准备工段", exact:true}).click();
+  await page.waitForFunction(() => document.querySelector(".map-canvas img")?.naturalWidth === 1600);
+  const sheep = await page.evaluate(() => {
+    const maps = MATERIALS.find(item => item.id === "leather-process-knowledge").maps;
+    const map = maps.find(item => item.id === "sheepskin-preparation");
+    const decoded = new TextDecoder().decode(Uint8Array.from(atob(map.image.split(",")[1]), char => char.charCodeAt(0)));
+    const svg = new DOMParser().parseFromString(decoded, "image/svg+xml");
+    const compact = text => text.replace(/\s/g, "");
+    return {pages:maps.length, originalCount:maps[0].count, count:map.count,
+      sequence:map.flow.steps.map(step => step.title).join("|"),
+      materials:map.flow.steps.flatMap(step => step.materials),
+      visualMatches:map.flow.steps.every(step => {
+        const text = compact(svg.querySelector('[data-step-id="'+step.id+'"]')?.textContent || "");
+        return step.materials.every(material => text.includes(compact(material.name+material.dosage)));
+      }),
+      pending:document.querySelector(".map-transcript").textContent.includes("计量基准待确认"),
+      incomplete:map.flow.steps[0].parameters[0][1].includes("偏差未填"),
+      ph:map.flow.steps[8].parameters[0][1],
+      usesSharedLayout:svg.querySelectorAll("image").length === 0 && svg.querySelectorAll("g[data-step-id]").length === map.count,
+      externalImages:[...svg.querySelectorAll("image")].some(img => !img.getAttribute("href")?.startsWith("data:"))};
+  });
+  assert(sheep.pages === 4 && sheep.originalCount === 14 && sheep.count === 12 && sheep.sequence === "预浸水、脱脂|去肉|主浸水|包灰下毛|浸灰|去肉|预脱灰|主脱灰|软化脱脂|水洗|浸酸|鞣制", "应保留原准备工段，并单独增加绵羊皮 12 步流程");
+  assert(sheep.materials.length === 23 && sheep.materials.every(material => material.basis === "计量基准待确认") && sheep.visualMatches && sheep.pending, "23 项材料用量应与对应流程框的图文一致，计量基准待确认");
+  assert(sheep.incomplete && sheep.ph === "8.5±2" && !sheep.externalImages, "应保留原稿待核实参数，并内嵌图片以支持离线");
+  assert(sheep.usesSharedLayout, "绵羊皮页应和其余三页一样由工序数据生成流程图");
   await page.setViewportSize({width:390, height:844});
   const flowFit = await mapTransform();
   await page.getByRole("button", {name:"放大", exact:true}).click();
